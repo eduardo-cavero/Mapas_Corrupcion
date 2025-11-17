@@ -1,0 +1,454 @@
+---
+title: "Reporte N.°8 - Sanciones Penales e Inhabilitaciones contra Servidores Civiles (2017-2024)"
+author: "Adjuntía de Lucha contra la Corrupción, Transparencia y Eficiencia del Estado "
+format: html
+editor: visual
+---
+
+# 1. Introducción
+
+Para la Defensoría del Pueblo, la corrupción constituye un problema de máxima prioridad, pues sus consecuencias —tanto directas como indirectas— afectan el acceso y pleno ejercicio de los derechos fundamentales de las personas. Además, golpea con mayor fuerza a las poblaciones en situación de vulnerabilidad, profundizando desigualdades y limitando oportunidades.
+
+En este escenario, una de las principales líneas de trabajo institucional es el análisis de datos sobre la corrupción, siendo los “Mapas de la corrupción” su producto emblemático.
+
+Esta herramienta busca acercar a la ciudadanía información estadística confiable y comprensible sobre los principales retos en la lucha contra este fenómeno, en un formato abierto y accesible. En esta edición, se presenta información proveniente del Registro Nacional de Sanciones contra Servidores Civiles, publicada en la Plataforma Nacional de Datos Abiertos.
+
+Para su elaboración, se sistematizó y analizó la base de datos utilizando R Project versión 4.5.1 en el entorno de desarrollo integrado RStudio versión 2025.09.0+387, lo que asegura un procesamiento transparente, reproducible y de calidad.
+
+# 2. Librerías
+
+```{r}
+library(rio)
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library(scales)
+
+```
+
+# 3. Importación de la base de datos
+
+```{r}
+data = import ("bd_servir.csv")
+```
+
+# 4. Funciones para la manipulación de datos y creación de nuevas variables
+
+## 4.1. Variable Sexo
+
+```{r}
+data1 <- data |>
+  mutate(
+    SEXO = as.character(SEXO),         
+    SEXO = str_squish(SEXO),           
+    SEXO = toupper(SEXO),  
+    SEXO = na_if(SEXO, ""),
+    SEXO = na_if(SEXO, "NULL"),
+    SEXO = na_if(SEXO, "NA"),
+      SEXO = recode(SEXO, "FEMENINO" = "F", "MASCULINO" = "M"),
+    SEXO = replace_na(SEXO, "N/A"),
+    SEXO = factor(SEXO, levels = c("N/A", "F", "M"))
+  )
+```
+
+## 4.2. Variable Causa de la Sacion
+
+```{r}
+data1 <- data |>
+  mutate(CAUSA_GRUPO = recode(CAUSA_SANCION,
+    "ARTÍCULO 296 - PROMOCIÓN O FAVORECIMIENTO AL TRÁFICO ILICITO DE DROGAS Y OTROS" = "Tráfico ilícito de drogas",
+    "ARTÍCULO 296 -A - COMERCIALIZACIÓN Y CULTIVO DE AMAPOLA Y MARIHUANA Y SU SIEMBRA COMPULSIVA (1er., 2do. y 4to. PARRAFO)" = "Tráfico ilícito de drogas",
+    "ARTÍCULO 296 -B - TRÁFICO ILÍCITO DE INSUMOS QUÍMICOS Y PRODUCTOS FISCALIZADOS" = "Tráfico ilícito de drogas",
+    "ARTÍCULO 382 - CONCUSIÓN" = "Concusión",
+    "ARTÍCULO 383 - COBRO INDEBIDO" = "Cobro indebido",
+    "ARTÍCULO 384 - COLUSIÓN SIMPLE Y AGRAVADA" = "Colusión",
+    "ARTÍCULO 387 - PECULADO DOLOSO Y CULPOSO" = "Peculado",
+    "ARTÍCULO 388 - PECULADO DE USO" = "Peculado",
+    "ARTÍCULO 389 - MALVERSACIÓN" = "Malversación",
+    "ARTÍCULO 393 - COHECHO PASIVO PROPIO" = "Cohecho",
+    "ARTÍCULO 394 - COHECHO PASIVO IMPROPIO" = "Cohecho",
+    "ARTÍCULO 395 - COHECHO PASIVO ESPECÍFICO" = "Cohecho",
+    "ARTÍCULO 396 - CORRUPCIÓN PASIVA DE AUXILIARES JURISDICCIONALES" = "Corrupción pasiva de auxiliares jurisdicc.",
+    "ARTÍCULO 397 - COHECHO ACTIVO GENÉRICO" = "Cohecho",
+    "ARTÍCULO 398 - COHECHO ACTIVO ESPECÍFICO" = "Cohecho",
+    "ARTÍCULO 399 - NEGOCIACIÓN INCOMPATIBLE O APROVECHAMIENTO INDEBIDO DE CARGO" = "Negociación incompatible",
+    "ARTÍCULO 400 - TRÁFICO DE INFLUENCIAS" = "Tráfico de influencias",
+    "ARTÍCULO 401 - ENRIQUECIMIENTO ILÍCITO" = "Enriquecimiento ilícito",
+    "D. LEGISLATIVO 1106 ART. 2 - ACTOS DE OCULTAMIENTO Y TENENCIA" = "Lavado de activos",
+    "D. LEY 25475 ART. 4-A - FINANCIAMIENTO DEL TERRORISMO" = "Financiamiento al terrorismo"
+  ))
+```
+
+```{r}
+data1 <- data1 |>
+  mutate(CAUSA_COD_PENAL = recode(CAUSA_SANCION,
+    "ARTÍCULO 296 - PROMOCIÓN O FAVORECIMIENTO AL TRÁFICO ILICITO DE DROGAS Y OTROS" = "Delitos contra la seguridad pública",
+    "ARTÍCULO 296 -A - COMERCIALIZACIÓN Y CULTIVO DE AMAPOLA Y MARIHUANA Y SU SIEMBRA COMPULSIVA (1er., 2do. y 4to. PARRAFO)" = "Delitos contra la seguridad pública",
+    "ARTÍCULO 296 -B - TRÁFICO ILÍCITO DE INSUMOS QUÍMICOS Y PRODUCTOS FISCALIZADOS" = "Delitos contra la seguridad pública",
+    "ARTÍCULO 382 - CONCUSIÓN" = "Delitos de corrupción",
+    "ARTÍCULO 383 - COBRO INDEBIDO" = "Delitos de corrupción",
+    "ARTÍCULO 384 - COLUSIÓN SIMPLE Y AGRAVADA" = "Delitos de corrupción",
+    "ARTÍCULO 387 - PECULADO DOLOSO Y CULPOSO" = "Delitos de corrupción",
+    "ARTÍCULO 388 - PECULADO DE USO" = "Delitos de corrupción",
+    "ARTÍCULO 389 - MALVERSACIÓN" = "Delitos de corrupción",
+    "ARTÍCULO 393 - COHECHO PASIVO PROPIO" = "Delitos de corrupción",
+    "ARTÍCULO 394 - COHECHO PASIVO IMPROPIO" = "Delitos de corrupción",
+    "ARTÍCULO 395 - COHECHO PASIVO ESPECÍFICO" = "Delitos de corrupción",
+    "ARTÍCULO 396 - CORRUPCIÓN PASIVA DE AUXILIARES JURISDICCIONALES" = "Delitos de corrupción",
+    "ARTÍCULO 397 - COHECHO ACTIVO GENÉRICO" = "Delitos de corrupción",
+    "ARTÍCULO 398 - COHECHO ACTIVO ESPECÍFICO" = "Delitos de corrupción",
+    "ARTÍCULO 399 - NEGOCIACIÓN INCOMPATIBLE O APROVECHAMIENTO INDEBIDO DE CARGO" = "Delitos de corrupción",
+    "ARTÍCULO 400 - TRÁFICO DE INFLUENCIAS" = "Delitos de corrupción",
+    "ARTÍCULO 401 - ENRIQUECIMIENTO ILÍCITO" = "Delitos de corrupción",
+    "D. LEGISLATIVO 1106 ART. 2 - ACTOS DE OCULTAMIENTO Y TENENCIA" = "Lavado de activos",
+    "D. LEY 25475 ART. 4-A - FINANCIAMIENTO DEL TERRORISMO" = "Financiamiento al terrorismo"
+  ))
+```
+
+## 4.3. Creación de la variable edad al momento de dar inicio a la sanción
+
+```{r}
+data1 <- data1 |>
+  mutate(ANIO_INICIO = substr(FECHA_INICIO_SANCION, 1, 4))
+data1$ANIO_INICIO <- as.numeric(data1$ANIO_INICIO)
+data1$FECHA_NACIMIENTO<- as.numeric(data1$FECHA_NACIMIENTO)
+data1$EDAD = data1$ANIO_INICIO - data1$FECHA_NACIMIENTO 
+```
+
+## 4.4. Creación de la variable Edad por Rangos
+
+```{r}
+data1 <- data1 |>
+    mutate(
+    Rango_edad = cut(
+      EDAD,
+      breaks = c(18, 25, 35, 45, 60, Inf),
+      labels = c("18-25", "26-35", "36-45", "46-60", "61+"),
+      right = TRUE   )   )
+```
+
+## 4.5. Base de datos para el procesamiento de datos
+
+```{r}
+data1 <- data1 %>%
+  filter(ANIO_INICIO %in% 2017:2024)
+unique(data1$ANIO_INICIO) 
+```
+
+# 5. Elaboración de gráficos
+
+## 5.1. Distribución según rango de edad
+
+```{r}
+data1 |>
+  filter(!is.na(Rango_edad)) %>%   
+  ggplot(aes(x = Rango_edad)) +
+  geom_bar(fill = "skyblue", color = "black") +
+  geom_text(
+    stat = "count",
+    aes(label = ..count..),
+    vjust = -0.5
+  ) +
+  labs(
+    title = "Distribución de sancionados por rango de edad",
+    x = "Rango de Edad",
+    y = "Cantidad de sancionados"
+  ) +
+  theme_minimal()
+```
+
+```{r}
+table(data1$Rango_edad, useNA = "always")
+summary(data1$EDAD)
+```
+
+## 5.2. Distribución según sexo
+
+```{r}
+data1_filtrado <- data1 |>
+  filter(SEXO %in% c("F", "M")) |>
+  mutate(SEXO = factor(SEXO, levels = c("F", "M")))
+
+sexo_counts <- data1_filtrado %>%
+  count(SEXO) %>%
+  mutate(pct = round(n / sum(n) * 100, 1),
+         label = paste0(SEXO, ": ", pct, "%"))
+
+ggplot(sexo_counts, aes(x = "", y = n, fill = SEXO)) +
+  geom_bar(stat = "identity", width = 1, color = "white") +
+  coord_polar(theta = "y") +
+  labs(title = "Distribución de personas por sexo") +
+  theme_void() + 
+  geom_text(aes(label = label),
+            position = position_stack(vjust = 0.5)) +
+  scale_fill_manual(values = c("pink","skyblue"))
+```
+
+```{r}
+table(data1$SEXO, useNA = "always")
+```
+
+## 5.3. Distribución de según sexo y rango de edad
+
+```{r}
+data1_filtrado1 <- data1_filtrado %>%
+  count(Rango_edad, SEXO) %>%
+  group_by(Rango_edad) %>%
+  mutate(
+    total_rango = sum(n),
+    porcentaje = n / total_rango,
+    porcentaje_texto = paste0(round(porcentaje * 100, 1), "%"),
+    etiqueta = paste0(porcentaje_texto, "\n(", n, ")")
+  ) %>%
+  ungroup()
+```
+
+```{r}
+ggplot(data1_filtrado1, aes(x = Rango_edad, y = porcentaje, fill = SEXO)) +
+  geom_bar(stat = "identity", position = "fill", color = "black", linewidth = 0.3) +
+  geom_text(aes(label = etiqueta), 
+            position = position_fill(vjust = 0.5), 
+            size = 3.5, 
+            color = "white", 
+            fontface = "bold") +
+  scale_y_continuous(labels = percent_format()) +
+  scale_fill_manual(values = c("F" = "#E91E63", "M" = "#2196F3")) +
+  labs(
+    title = "Composición porcentual de sexo por rango de edad",
+    x = "Rango de edad", 
+    y = "Porcentaje", 
+    fill = "Sexo",
+    caption = "Fuente: Registro Nacional de Sanciones contra Servidores Civiles"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+    plot.subtitle = element_text(hjust = 0.5, size = 12),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+    legend.position = "bottom",
+    panel.grid.minor = element_blank()
+  )
+```
+
+```{r}
+table(data1$SEXO, data1$Rango_edad)
+```
+
+## 5.4. Distribución por la causa de la sanción
+
+```{r}
+# 1. Limpiar datos vacíos y convertirlos a NA
+data1_clean <- data1 %>%
+  mutate(CAUSA_GRUPO = ifelse(CAUSA_GRUPO == "" | is.na(CAUSA_GRUPO), NA, CAUSA_GRUPO)) %>%
+  filter(!is.na(CAUSA_GRUPO))  # Eliminar filas con NA en CAUSA_GRUPO
+
+# 2. Contar frecuencias por tipo de delito
+conteos_delitos <- data1_clean %>%
+  count(CAUSA_GRUPO, sort = TRUE)
+
+ggplot(conteos_delitos, aes(x = reorder(CAUSA_GRUPO, n), y = n)) +
+  geom_bar(stat = "identity", fill = "steelblue", alpha = 0.8) +
+  geom_text(aes(label = n), hjust = -0.1, size = 3.5, color = "black") +
+  coord_flip() +  # Voltear coordenadas para mejor legibilidad
+  labs(
+    title = "Distribución de Casos por Tipo de Delito",
+    x = "Tipo de Delito",
+    y = "Número de Casos",
+    caption = "Fuente: Registro Nacional de Sanciones contra Servidores Civiles"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+    plot.subtitle = element_text(hjust = 0.5, size = 12),
+    axis.text.y = element_text(size = 10),
+    axis.text.x = element_text(size = 10),
+    panel.grid.minor = element_blank()
+  )
+```
+
+## 5.5. Distribución según categoría de la sanción
+
+```{r}
+ggplot(data1 |> 
+         filter(!is.na(CAUSA_COD_PENAL) &           
+                CAUSA_COD_PENAL != "" &             
+                str_trim(CAUSA_COD_PENAL) != "") |> 
+         count(CAUSA_COD_PENAL) |>                  
+         arrange(n),                                
+       aes(x = reorder(CAUSA_COD_PENAL, n), y = n)) +
+  
+  geom_bar(stat = "identity", fill = "steelblue", alpha = 0.8) +  
+  coord_flip() +  
+  labs(title = "Distribución de sancionados por grupo de delitos de la causa de sanción",
+       x = "Agrupación de delito",
+       y = "Cantidad de sancionados",
+    caption = "Fuente: Registro Nacional de Sanciones contra Servidores Civiles") +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 15),  
+    axis.text.y = element_text(size = 11),
+    axis.text.x = element_text(size = 10),  
+    panel.grid.major.y = element_blank(),   
+    panel.grid.minor = element_blank()     
+  ) +
+  geom_text(aes(label = n), hjust = -0.1, size = 3.5)
+```
+
+# 6. Elaboración de gráficos para Delitos de Corrupción
+
+## 6.1. Distribución de delitos de corrupción
+
+```{r}
+ggplot(data1 |> 
+         filter(!is.na(CAUSA_COD_PENAL) &
+                CAUSA_COD_PENAL == "Delitos de corrupción" &  
+                !is.na(CAUSA_GRUPO) &                       
+                CAUSA_GRUPO != "" &             
+                str_trim(CAUSA_GRUPO) != "") |> 
+         count(CAUSA_GRUPO) |>                              
+         arrange(n),                                
+       aes(x = reorder(CAUSA_GRUPO, n), y = n)) +          
+    geom_bar(stat = "identity", fill = "steelblue", alpha = 0.8) +  
+  coord_flip() +  
+  labs(title = "Distribución de Tipos de Delitos de Corrupción",
+       x = "Tipos de Delitos de Corrupción",               
+       y = "Cantidad de sancionados",
+       caption = "Fuente: Registro Nacional de Sanciones contra Servidores Civiles") +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 15),  
+    axis.text.y = element_text(size = 11),
+    axis.text.x = element_text(size = 10),  
+    panel.grid.major.y = element_blank(),   
+    panel.grid.minor = element_blank()     
+  ) +
+  geom_text(aes(label = n), hjust = -0.1, size = 3.5)
+```
+
+## 6.2. Distribución de sancionados por delitos de corrupción según rango de edad
+
+```{r}
+data1 %>%
+  filter(CAUSA_COD_PENAL == "Delitos de corrupción" & !is.na(Rango_edad)) %>%
+  count(Rango_edad) %>%
+  mutate(porcentaje = round(n / sum(n) * 100, 1)) %>%
+  ggplot(aes(x = Rango_edad, y = n, fill = Rango_edad)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Sancionados por delitos de corrupción según rango de edad",
+       x = "Rango de Edad",
+       y = "Frecuencia",
+       caption = "Fuente: Registro Nacional de Sanciones contra Servidores Civiles", 
+       fill = "Rango de Edad") +
+  geom_text(aes(label = paste0(n, "\n(", porcentaje, "%)")), 
+            vjust = -0.1, size = 2) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+    plot.title = element_text(hjust = 0.1, size = 12),
+    plot.caption = element_text(size = 10),
+    legend.position = "none"  # Quitar leyenda para ahorrar espacio
+  )
+```
+
+```{r}
+summary(data1$Rango_edad)
+```
+
+## 6.3. Distribución de sancionados por delitos de corrupción según sexo
+
+```{r}
+data1 %>%
+  filter(CAUSA_COD_PENAL == "Delitos de corrupción" & 
+         !is.na(SEXO) &                    
+         SEXO != "" &                      
+         str_trim(SEXO) != "") %>%
+  count(SEXO) %>%
+  mutate(porcentaje = round(n / sum(n) * 100, 1)) %>%
+  ggplot(aes(x = SEXO, y = n, fill = SEXO)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Distribución de sancionados por delitos de corrupción, según sexo",  
+       x = "Sexo",                         
+       y = "Frecuencia",
+       caption = "Fuente: Registro Nacional de Sanciones contra Servidores Civiles", 
+       fill = "Sexo") +                    
+  geom_text(aes(label = paste0(n, "\n(", porcentaje, "%)")), 
+            vjust = -0.1, size = 3) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5),  
+        plot.title = element_text(hjust = 0.5)) +
+  scale_fill_manual(values = c("F" = "#E74C3C", "M" = "#3498DB"),
+                    labels = c("F" = "Femenino", "M" = "Masculino"))
+```
+
+## 6.4. Distribución de sancionados por delitos de corrupción según sexo y rango de edad
+
+```{r}
+data1 %>%
+  filter(CAUSA_COD_PENAL == "Delitos de corrupción" & 
+         !is.na(SEXO) & SEXO != "" & str_trim(SEXO) != "" &
+         !is.na(Rango_edad) & Rango_edad != "" & str_trim(Rango_edad) != "") %>%
+  count(SEXO, Rango_edad) %>%
+  group_by(Rango_edad) %>%                              
+  mutate(total_edad = sum(n),                           
+         porcentaje = round(n/total_edad*100, 1)) %>%   
+  ungroup() %>%
+  ggplot(aes(x = Rango_edad, y = n, fill = SEXO)) +
+  geom_bar(stat = "identity", position = "stack") +
+  labs(title = "Sancionados por delitos de corrupción según y rangos de edad",
+       x = "Rangos de edad",
+       y = "Cantidad de sancionados por delitos de corrupción",
+       caption = "Fuente: Registro Nacional de Sanciones contra Servidores Civiles", 
+       fill = "Sexo") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5),    
+        plot.title = element_text(hjust = 0.5, face = "bold")) +
+  scale_fill_manual(values = c("F" = "#E74C3C", "M" = "#3498DB"),
+                    labels = c("F" = "Femenino", "M" = "Masculino")) +
+  geom_text(aes(label = paste0(n, "\n(", porcentaje, "%)")),   
+            position = position_stack(vjust = 0.5), 
+            size = 3, color = "black", fontface = "bold")
+```
+
+## 6.5. Distribución de sancionados por delitos de corrupción según año (2017-2024)
+
+```{r}
+data_temporal <- data1 %>%
+  mutate(CAUSA_GRUPO = ifelse(CAUSA_GRUPO == "" | is.na(CAUSA_GRUPO), NA, CAUSA_GRUPO)) %>%
+  filter(!is.na(CAUSA_GRUPO) & !is.na(ANIO_INICIO) & !is.na(CAUSA_COD_PENAL)) %>%
+  filter(CAUSA_COD_PENAL == "Delitos de corrupción") %>%
+  filter(ANIO_INICIO >= 2017 & ANIO_INICIO <= 2024) %>%
+  count(ANIO_INICIO, CAUSA_GRUPO, name = "casos") %>%
+  complete(ANIO_INICIO, CAUSA_GRUPO, fill = list(casos = 0))
+```
+
+```{r}
+ggplot(data_temporal, aes(x = ANIO_INICIO, y = casos, color = CAUSA_GRUPO)) +
+  geom_line(linewidth = 1.2, alpha = 0.8) +
+  geom_point(size = 3, alpha = 0.9) +
+  geom_text(aes(label = ifelse(casos > 0, casos, "")), 
+            vjust = -0.8, hjust = 0.5, size = 3, 
+            color = "black", fontface = "bold") +
+  scale_x_continuous(breaks = 2017:2024, 
+                     labels = 2017:2024) +
+  scale_y_continuous(breaks = pretty_breaks()) +
+  labs(
+    title = "Evolución Temporal de Delitos de Corrupción (2017-2025)",
+    x = "Año de Inicio",
+    y = "Número de Casos",
+    color = "Tipo de Delito de Corrupción",
+    caption = "Fuente: Registro Nacional de Sanciones contra Servidores Civiles", 
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+    plot.subtitle = element_text(hjust = 0.5, size = 12),
+    legend.position = "bottom",
+    legend.title = element_text(size = 12, face = "bold"),
+    legend.text = element_text(size = 9),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+    axis.text.y = element_text(size = 10),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_line(linetype = "dashed", color = "gray70")
+  ) +
+  guides(color = guide_legend(nrow = 3, byrow = TRUE))
+```
