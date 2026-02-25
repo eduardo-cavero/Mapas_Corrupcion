@@ -1,0 +1,246 @@
+---
+title: "Reporte N.°9 - Sanciones Penales e Inhabilitaciones contra Servidores Civiles (2025)"
+authors: "Adjuntía de Lucha contra la Corrupción, Transparencia y Eficiencia del Estado"
+format: html
+editor: visual
+---
+
+## Pregunta de investigación
+
+¿Cuáles son las principales características y tendencias de las sanciones impuestas a servidores civiles en el Perú, en términos de causas, temporalidad y perfil sociodemográfico de los sancionados en el 2025?
+
+## Objetivo
+
+El objetivo del presente reporte es analizar las sanciones impuestas a servidores civiles en el Perú registradas en el RNSSC con la finalidad de:
+
+1.  Sensibilizar sobre un problema público: evidenciar la magnitud de las conductas sancionadas en la administración pública, como actos de corrupción (peculado, colusión, concusión) u otras faltas graves, que afectan la confianza ciudadana en las instituciones del Estado.
+
+2.  Brindar insumos para la toma de decisiones en entidades gubernamentales
+
+3.  Analizar la distribución de causas de sanción
+
+4.  Examinar tendencias temporales por año de inicio de sanción
+
+5.  Evaluar si existe un patrón por sexo y edad de los sancionados.
+
+## Metodología
+
+Nuestro estudio es descriptivo - explicativo con data proviene de la Autoridad Nacional del Servicio Civil (SERVIR) basado en microdatos del Registro Nacional de Sanciones contra Servidores Civiles (RNSSC). Esta contiene 7 949 registros con sanciones a personas de entidades estatales de los años 2017 a junio del 2025. Cada registro corresponde a una sanción, el tipo y categoría de sanción, así como las fechas clave del proceso sancionador. Se identificaron valores faltantes en algunas variables como fecha de nacimiento y número de registro.
+
+### Abrimos las librerias a usar
+
+```{r}
+library(rio)
+library(tidyverse)
+library (ggplot2)
+library(dplyr)
+library(writexl)
+```
+
+### Importamos la data a utilizar: Base de datos (2017-jun2025) y base de datos (jun2025 - noviembre2025)
+
+```{r}
+df_periodo1 = import("bd_servir.csv")
+df_periodo2 = import("bd_Servir_260625_301125.csv")
+
+df_total <- bind_rows(df_periodo1, df_periodo2)
+
+df_total <- bind_rows(
+  "Periodo 1" = df_periodo1, 
+  "Periodo 2" = df_periodo2, 
+  .id = "origen"
+)
+```
+
+### Observamos las variables que posee nuestra data
+
+```{r}
+summary (df_total)
+```
+
+### Realizamos las transformaciones necesarias para desarrollar nuestro trabajo
+
+#### *Filtramos solo F y M en la variable SEXO*
+
+```{r}
+str(df_total$SEXO)
+levels(df_total$SEXO)
+table(df_total$SEXO)
+```
+
+```{r}
+data1 <- df_total|>
+  mutate(
+    SEXO = as.character(SEXO),         
+    SEXO = str_squish(SEXO),           
+    SEXO = toupper(SEXO),  
+    SEXO = na_if(SEXO, ""),
+    SEXO = na_if(SEXO, "NULL"),
+    SEXO = na_if(SEXO, "NA"),
+      SEXO = recode(SEXO, "FEMENINO" = "F", "MASCULINO" = "M"),
+    SEXO = replace_na(SEXO, "N/A"),
+    SEXO = factor(SEXO, levels = c("N/A", "F", "M"))
+  )
+```
+
+```{r}
+levels(data1$SEXO)
+table(data1$SEXO)
+summary(data1$SEXO)
+str(data1$SEXO)
+```
+
+#### *Trabajamos la columna de CAUSA_SANCION*
+
+```{r}
+class(df_total$CAUSA_SANCION)
+table(df_total$CAUSA_SANCION)
+
+data1 <- df_total |>
+  mutate(CAUSA_GRUPO = recode(CAUSA_SANCION,
+    "ARTÍCULO 296 - PROMOCIÓN O FAVORECIMIENTO AL TRÁFICO ILICITO DE DROGAS Y OTROS" = "Tráfico ilícito de drogas",
+    "ARTÍCULO 296 -A - COMERCIALIZACIÓN Y CULTIVO DE AMAPOLA Y MARIHUANA Y SU SIEMBRA COMPULSIVA (1er., 2do. y 4to. PARRAFO)" = "Tráfico ilícito de drogas",
+    "ARTÍCULO 296 -B - TRÁFICO ILÍCITO DE INSUMOS QUÍMICOS Y PRODUCTOS FISCALIZADOS" = "Tráfico ilícito de drogas",
+    "ARTÍCULO 382 - CONCUSIÓN" = "Concusión",
+    "ARTÍCULO 383 - COBRO INDEBIDO" = "Cobro indebido",
+    "ARTÍCULO 384 - COLUSIÓN SIMPLE Y AGRAVADA" = "Colusión",
+    "ARTÍCULO 387 - PECULADO DOLOSO Y CULPOSO" = "Peculado",
+    "ARTÍCULO 388 - PECULADO DE USO" = "Peculado",
+    "ARTÍCULO 389 - MALVERSACIÓN" = "Malversación",
+    "ARTÍCULO 393 - COHECHO PASIVO PROPIO" = "Cohecho",
+    "ARTÍCULO 394 - COHECHO PASIVO IMPROPIO" = "Cohecho",
+    "ARTÍCULO 395 - COHECHO PASIVO ESPECÍFICO" = "Cohecho",
+    "ARTÍCULO 396 - CORRUPCIÓN PASIVA DE AUXILIARES JURISDICCIONALES" = "Corrupción pasiva de auxiliares jurisdicc.",
+    "ARTÍCULO 397 - COHECHO ACTIVO GENÉRICO" = "Cohecho",
+    "ARTÍCULO 398 - COHECHO ACTIVO ESPECÍFICO" = "Cohecho",
+    "ARTÍCULO 399 - NEGOCIACIÓN INCOMPATIBLE O APROVECHAMIENTO INDEBIDO DE CARGO" = "Negociación incompatible",
+    "ARTÍCULO 400 - TRÁFICO DE INFLUENCIAS" = "Tráfico de influencias",
+    "ARTÍCULO 401 - ENRIQUECIMIENTO ILÍCITO" = "Enriquecimiento ilícito",
+    "D. LEGISLATIVO 1106 ART. 2 - ACTOS DE OCULTAMIENTO Y TENENCIA" = "Lavado de activos",
+    "D. LEY 25475 ART. 4-A - FINANCIAMIENTO DEL TERRORISMO" = "Financiamiento al terrorismo"
+  ))
+```
+
+#### *Ordenamos la frecuencia de los datos por tipo de sanción y generamos una nueva data para quitar los N/A en los gráficos*
+
+```{r}
+dist_causas <- data1 |>
+  count(CAUSA_GRUPO) |>
+  arrange(n)
+```
+
+#### *Seleccionamos la columna de FECHA_INICIO_SANCION*
+
+Transformamos los datos y creamos dos nuevas variable: año y mes del inicio de la sanción
+
+```{r}
+data1 <- data1 |>
+  mutate(ANIO_INICIO = substr(FECHA_INICIO_SANCION, 1, 4))
+
+table(data1$ANIO_INICIO)
+data1$ANIO_INICIO <- as.numeric(data1$ANIO_INICIO)
+str(data1$ANIO_INICIO)
+table(data1$ANIO_INICIO)
+summary(data1$ANIO_INICIO)
+```
+
+```{r}
+data1 <- data1 |>
+  mutate(
+    MES_INICIO = substr(FECHA_INICIO_SANCION, 5, 6),
+    MES_INICIO = as.numeric(MES_INICIO),
+    MES_NOMBRE_INICIO = month.name[MES_INICIO] 
+  )
+```
+
+#### *Transformación de la variable FECHA_NACIMIENTO*
+
+```{r}
+str(data1$FECHA_NACIMIENTO)
+data1$FECHA_NACIMIENTO<- as.numeric(data1$FECHA_NACIMIENTO)
+table(data1$FECHA_NACIMIENTO)
+```
+
+#### *Creamos la variable edad*
+
+```{r}
+data1$EDAD = data1$ANIO_INICIO - data1$FECHA_NACIMIENTO 
+table(data1$EDAD)
+```
+
+#### *Edad por rangos*
+
+```{r}
+data1 <- data1 |>
+    mutate(
+    Rango_edad = cut(
+      EDAD,
+      breaks = c(18, 25, 35, 45, 60, Inf),
+      labels = c("18-25", "26-35", "36-45", "46-60", "61+"),
+      right = TRUE   )   )
+```
+
+#### *Modificación a la variable TIPO_DOCUMENTO*
+
+-\> Evaluar si resulta necesario conservar "tipo_documento", ya que actúa como una constante en donde la mayoría de sancionados tienen DNI.
+
+```{r}
+table(data1$TIPO_DOCUMENTO)
+str(data1$TIPO_DOCUMENTO)
+```
+
+```{r}
+data1 <- data1 %>%
+  mutate (TIPO_DOCUMENTO = factor(TIPO_DOCUMENTO, 
+                                 levels = c ("CARNÉ DE EXTRANJERÍA","DOCUMENTO NACIONAL DE IDENTIDAD" )), 
+    TIPO_DOCUMENTO = recode(TIPO_DOCUMENTO,
+                            "CARNÉ DE EXTRANJERÍA" = "CE",
+                            "DOCUMENTO NACIONAL DE IDENTIDAD" = "DNI"))
+
+```
+
+```{r}
+table(data1$TIPO_DOCUMENTO)
+summary(data1$TIPO_DOCUMENTO)
+```
+
+Extraemos la data final: AÑO 2025
+
+```{r}
+data_2025 <- data1 |>
+  filter(ANIO_INICIO == 2025)
+```
+
+#### *Nueva clasificación de causa de sanciones por delito de corrupción:*
+
+```{r}
+#Se agregó la variable CAUSA_COD_PENAL, manteniendo la variable CAUSA_GRUPO original
+
+data_2025 <- data_2025 |>
+  mutate(CAUSA_COD_PENAL = recode(CAUSA_SANCION,
+    "ARTÍCULO 296 - PROMOCIÓN O FAVORECIMIENTO AL TRÁFICO ILICITO DE DROGAS Y OTROS" = "Delito contra la seguridad pública",
+    "ARTÍCULO 296 -A - COMERCIALIZACIÓN Y CULTIVO DE AMAPOLA Y MARIHUANA Y SU SIEMBRA COMPULSIVA (1er., 2do. y 4to. PARRAFO)" = "Delito contra la seguridad pública",
+    "ARTÍCULO 296 -B - TRÁFICO ILÍCITO DE INSUMOS QUÍMICOS Y PRODUCTOS FISCALIZADOS" = "Delito contra la seguridad pública",
+    "ARTÍCULO 382 - CONCUSIÓN" = "Delito de corrupción",
+    "ARTÍCULO 383 - COBRO INDEBIDO" = "Delito de corrupción",
+    "ARTÍCULO 384 - COLUSIÓN SIMPLE Y AGRAVADA" = "Delito de corrupción",
+    "ARTÍCULO 387 - PECULADO DOLOSO Y CULPOSO" = "Delito de corrupción",
+    "ARTÍCULO 388 - PECULADO DE USO" = "Delito de corrupción",
+    "ARTÍCULO 389 - MALVERSACIÓN" = "Delito de corrupción",
+    "ARTÍCULO 393 - COHECHO PASIVO PROPIO" = "Delito de corrupción",
+    "ARTÍCULO 394 - COHECHO PASIVO IMPROPIO" = "Delito de corrupción",
+    "ARTÍCULO 395 - COHECHO PASIVO ESPECÍFICO" = "Delito de corrupción",
+    "ARTÍCULO 396 - CORRUPCIÓN PASIVA DE AUXILIARES JURISDICCIONALES" = "Delito de corrupción",
+    "ARTÍCULO 397 - COHECHO ACTIVO GENÉRICO" = "Delito de corrupción",
+    "ARTÍCULO 398 - COHECHO ACTIVO ESPECÍFICO" = "Delito de corrupción",
+    "ARTÍCULO 399 - NEGOCIACIÓN INCOMPATIBLE O APROVECHAMIENTO INDEBIDO DE CARGO" = "Delito de corrupción",
+    "ARTÍCULO 400 - TRÁFICO DE INFLUENCIAS" = "Delito de corrupción",
+    "ARTÍCULO 401 - ENRIQUECIMIENTO ILÍCITO" = "Delito de corrupción",
+    "D. LEGISLATIVO 1106 ART. 2 - ACTOS DE OCULTAMIENTO Y TENENCIA" = "Lavado de activos",
+    "D. LEY 25475 ART. 4-A - FINANCIAMIENTO DEL TERRORISMO" = "Financiamiento al terrorismo"
+  ))
+```
+
+```{r}
+write_xlsx(data_2025, "data_2025.xlsx")
+```
