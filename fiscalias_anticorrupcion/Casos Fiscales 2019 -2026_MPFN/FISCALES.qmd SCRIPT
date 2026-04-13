@@ -1,0 +1,460 @@
+---
+title: "CASOS FISCALES"
+author: "OSCAR"
+format: html
+editor: visual
+---
+
+```{r}
+library(rio)
+library(tidyverse)
+library (ggplot2)
+library(dplyr)
+library(writexl)
+library(tidyr)
+library(stringr)
+```
+
+# Importamos y unimos las bases de datos
+
+```{r}
+#Añadimos la base de datos de CASOS
+casos_periodo1 = import("BD-casos-fiscales-2019.csv")
+casos_periodo2 = import("BD-casos-fiscales-2020.csv")
+casos_periodo3 = import("BD-casos-fiscales-2021.csv")
+casos_periodo4 = import("BD-casos-fiscales-2022.csv")
+casos_periodo5 = import("BD-casos-fiscales-2023.csv")
+casos_periodo6 = import("BD-casos-fiscales-2024.csv")
+casos_periodo7 = import("BD-casos-fiscales-2025-12.csv")
+casos_periodo8 = import("BD-casos-fiscales-2026-02.csv")
+
+casos_total <- bind_rows(casos_periodo1, casos_periodo2, casos_periodo3, casos_periodo4, casos_periodo5, casos_periodo6, casos_periodo7, casos_periodo8)
+```
+
+```{r}
+#Añadimos la base de datos de FISCALES
+fiscal_periodo1 = import("BD-fiscales-2019.csv")
+fiscal_periodo2 = import("BD-fiscales-2020.csv")
+fiscal_periodo3 = import("BD-fiscales-2021.csv")
+fiscal_periodo4 = import("BD-fiscales-2022.csv")
+fiscal_periodo5 = import("BD-fiscales-2023.csv")
+fiscal_periodo6 = import("BD-fiscales-2024.csv")
+fiscal_periodo7 = import("BD-fiscales-2025-12.csv")
+
+fiscales_total <- bind_rows(fiscal_periodo1, fiscal_periodo2, fiscal_periodo3, fiscal_periodo4, fiscal_periodo5, fiscal_periodo6, fiscal_periodo7)
+```
+
+## Limpieza de la base de datos CASOS
+
+```{r}
+# Filtrar los CASOS para quedarnos solo con materia penal
+casos_penal <- casos_total %>%
+  filter(materia == "PENAL")
+```
+
+## Limpieza de la base de datos FISCALES
+
+```{r}
+fiscales_total <- fiscales_total %>%
+  mutate(
+    # Estandarizar nombres de distritos para el cruce (sin espacios extra y en mayúsculas)
+    distrito_fiscal = str_trim(str_to_upper(distrito_fiscal)),
+    cargo = str_trim(str_to_upper(cargo)),
+    condicion = str_trim(str_to_upper(condicion)),
+    ubicacion_especialidad = str_trim(str_to_upper(ubicacion_especialidad)))
+```
+
+```{r}
+# Convertir blancos a NA y estandarizar texto
+fiscales_total <- fiscales_total %>%
+  mutate(
+    ubicacion_especialidad = str_trim(str_to_upper(ubicacion_especialidad)),
+    ubicacion_especialidad = ifelse(ubicacion_especialidad == "" | is.na(ubicacion_especialidad), "SIN DATO", ubicacion_especialidad)
+  )
+```
+
+```{r}
+#Definir las categorías que corresponden a la materia PENAL
+# Nota: Se incluyen fiscalías MIXTAS ya que en distritos alejados ven materia penal.
+fiscales_penal <- c(
+  "PENAL", "CRIMEN ORGANIZADO", "CORRUPCION DE FUNCIONARIOS", 
+  "VIOLENCIA CONTRA LA MUJER E INTEGRANTES DEL GRUPO FAMILIAR",
+  "TRAFICO ILICITO DE DROGAS", "MATERIA AMBIENTAL", "LAVADO DE ACTIVOS",
+  "CIBERDELINCUENCIA", "DELITOS DE TRATA DE PERSONAS", "EXTINCION DE DOMINIO",
+  "TRANSITO Y SEGURIDAD VIAL", "DELITOS TRIBUTARIOS", 
+  "DELITOS ADUANEROS Y CONTRA LA PROPIEDAD INTELECTUAL",
+  "DELITOS TRIBUTARIOS, ADUANEROS Y CONTRA LA PROPIEDAD INTELECTUAL",
+  "DERECHOS HUMANOS E INTERCULTURALIDAD", "DERECHOS HUMANOS - INTERCULTURALIDAD - TERRORISMO",
+  "DERECHOS HUMANOS Y CONTRA EL TERRORISMO", "DELITOS DE TERRORISMO Y DELITOS CONEXOS",
+  "SUPRAPROVINCIAL - TERRORISMO - LESA HUMANIDAD", "PENAL DE FLAGRANCIA DELICTIVA",
+  "MIXTA", "PREVENCION DEL DELITO", "TURISMO"
+)
+
+fiscales_penales <- fiscales_total %>%
+  filter(ubicacion_especialidad %in% fiscales_penal)
+```
+
+# Sub_datos de CASOS
+
+```{r}
+# Creamos tabla resumen de carga procesal penal
+carga_penal <- casos_penal %>%
+  group_by(distrito_fiscal, anio) %>%
+  summarise(
+    total_ingresados = sum(ingresado, na.rm = TRUE),
+    total_atendidos = sum(atendido, na.rm = TRUE),
+    .groups = 'drop' 
+  ) %>%
+  mutate(
+    # Calculamos la diferencia (casos que no tuvieron ningún movimiento procesal)
+    casos_sin_movimiento = total_ingresados - total_atendidos,
+    
+    # Calculamos el porcentaje de atención (tasa de respuesta inicial)
+    tasa_atencion_pct = round((total_atendidos / total_ingresados) * 100, 2)
+  ) %>%
+  arrange(anio, desc(total_ingresados)) # Ordenamos por año y de mayor a menor carga
+```
+
+```{r}
+# Calculamos el resumen nacional con tasas de variación
+resumen_evolucion_crecimiento <- casos_penal %>%
+  group_by(anio) %>%
+  summarise(
+    total_ingresados = sum(ingresado, na.rm = TRUE),
+    total_tramitados = sum(atendido, na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  arrange(anio) %>%
+  mutate(
+    # 1. Diferencia absoluta respecto al año anterior
+    dif_ingresados = total_ingresados - lag(total_ingresados),
+    
+    # 2. % de Avance/Crecimiento (Variación Interanual)
+    crecimiento_anual_pct = round((dif_ingresados / lag(total_ingresados)) * 100, 2),
+    
+    # 3. Porcentaje de respuesta anual (Atendidos/Ingresados)
+    porcentaje_respuesta = round((total_tramitados / total_ingresados) * 100, 2)
+  )
+```
+
+```{r}
+
+# Prepararamos los datos sumando todo a nivel nacional
+data_nacional <- carga_penal %>%
+  group_by(anio) %>%
+  summarise(
+    Ingresados = sum(total_ingresados, na.rm = TRUE),
+    Atendidos = sum(total_atendidos, na.rm = TRUE)
+  ) %>%
+  # pivot_longer transforma las columnas en filas para que ggplot las lea mejor
+  pivot_longer(cols = c(Ingresados, Atendidos), 
+               names_to = "Estado", 
+               values_to = "Total")
+
+# Creamos el gráfico
+grafico_nacional <- ggplot(data_nacional, aes(x = as.factor(anio), y = Total, color = Estado, group = Estado)) +
+  geom_line(size = 1.2) +
+  geom_point(size = 3) +
+  labs(
+    title = "Evolución Nacional de la Carga Procesal Penal",
+    subtitle = "Brecha entre casos ingresados y casos con movimiento procesal",
+    x = "Año",
+    y = "Cantidad Total de Casos",
+    color = "Estado del Caso"
+  ) +
+  theme_minimal() +
+  # Usamos rojo para el problema (ingresados) y verde/azul para lo avanzado
+  scale_color_manual(values = c("Ingresados" = "#E74C3C", "Atendidos" = "#2980B9")) +
+  theme(legend.position = "bottom")
+
+# Mostrar el gráfico
+print(grafico_nacional)
+```
+
+```{r}
+# Identificar el último año en la base
+ultimo_anio <- max(carga_penal$anio, na.rm = TRUE)
+
+# 2.2 Preparar los datos filtrando año
+data_distritos <- carga_penal %>%
+  filter(anio == ultimo_anio) %>%
+  arrange(desc(total_ingresados)) %>%
+  head(35) %>% 
+  pivot_longer(cols = c(total_ingresados, total_atendidos), 
+               names_to = "Estado", 
+               values_to = "Total") %>%
+  # Limpiamos los nombres para la leyenda
+  mutate(Estado = ifelse(Estado == "total_ingresados", "Ingresados", "Atendidos"))
+
+# 2.3 Crear el gráfico de barras horizontales
+grafico_distritos <- ggplot(data_distritos, aes(x = reorder(distrito_fiscal, Total), y = Total, fill = Estado)) +
+  # position = "dodge" pone las barras una al lado de la otra
+  geom_col(position = "dodge") + 
+  coord_flip() + # Voltea el gráfico para leer bien los nombres de los distritos
+  labs(
+    title = paste("Distritos Fiscales con Mayor Carga Penal en", ultimo_anio),
+    subtitle = "Comparativa de casos ingresados vs. atendidos",
+    x = "Distrito Fiscal",
+    y = "Cantidad de Casos",
+    fill = "Estado"
+  ) +
+  theme_minimal() +
+  scale_fill_manual(values = c("Ingresados" = "#E74C3C", "Atendidos" = "#2980B9")) +
+  theme(legend.position = "bottom")
+
+# Mostrar el gráfico
+print(grafico_distritos)
+```
+
+```{r}
+# 1. Identificar el último año
+ultimo_anio <- max(carga_penal$anio, na.rm = TRUE)
+
+# 2. Calcular el gran total nacional del año para obtener el denominador
+total_nacional_anio <- carga_penal %>%
+  filter(anio == ultimo_anio) %>%
+  summarise(gran_total = sum(total_ingresados, na.rm = TRUE)) %>%
+  pull(gran_total)
+
+# 3. Preparar la tabla resumen con porcentajes
+tabla_distritos_participacion <- carga_penal %>%
+  filter(anio == ultimo_anio) %>%
+  mutate(
+    # Calculamos el % que representa cada distrito sobre el total nacional
+    porcentaje_participacion = round((total_ingresados / total_nacional_anio) * 100, 2)
+  ) %>%
+  select(distrito_fiscal, total_ingresados, porcentaje_participacion) %>%
+  arrange(desc(total_ingresados))
+```
+
+```{r}
+# Crear el resumen por tipo de fiscalía y especialidad
+resumen_especialidad <- casos_penal %>%
+  group_by(tipo_fiscalia, especialidad) %>%
+  summarise(
+    total_ingresados = sum(ingresado, na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  arrange(tipo_fiscalia, desc(total_ingresados))
+```
+
+```{r}
+casos_evolucion_tipo <- casos_penal %>%
+  group_by(anio, tipo_fiscalia) %>%
+  summarise(
+    Ingresados = sum(ingresado, na.rm = TRUE),
+    Atendidos = sum(atendido, na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  # Pasamos a formato largo para que ggplot identifique "Ingresados" y "Atendidos"
+  pivot_longer(cols = c(Ingresados, Atendidos), 
+               names_to = "Estado_Caso", 
+               values_to = "Total")
+```
+
+```{r}
+# 1. Identificar el total nacional de ingresos en 2025 para el cálculo porcentual
+total_nacional_2025 <- casos_penal %>%
+  filter(anio == 2025) %>%
+  summarise(total = sum(ingresado, na.rm = TRUE)) %>%
+  pull(total)
+
+# 2. Crear tabla resumen por tipo de fiscalía
+tabla_tipo_fiscalia_2025 <- casos_penal %>%
+  filter(anio == 2025) %>%
+  group_by(tipo_fiscalia) %>%
+  summarise(
+    total_ingresados = sum(ingresado, na.rm = TRUE),
+    total_atendidos = sum(atendido, na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  mutate(
+    # % de participación sobre el total nacional
+    porcentaje_participacion = round((total_ingresados / total_nacional_2025) * 100, 2),
+    # % de eficacia interna (qué tanto resuelven según lo que les entra)
+    tasa_respuesta = round((total_atendidos / total_ingresados) * 100, 2)
+  ) %>%
+  arrange(desc(total_ingresados))
+
+# Visualizar tabla
+print(tabla_tipo_fiscalia_2025)
+```
+
+```{r}
+ggplot(casos_evolucion_tipo, aes(x = anio, y = Total, color = Estado_Caso, group = Estado_Caso)) +
+  geom_line(size = 1.2) +
+  geom_point(size = 2) +
+  # Creamos un panel por cada tipo de fiscalía
+  facet_wrap(~tipo_fiscalia, scales = "free_y") + 
+  scale_x_continuous(breaks = 2019:2025) +
+  scale_color_manual(values = c("Ingresados" = "#E74C3C", "Atendidos" = "#2ECC71")) +
+  labs(
+    title = "Evolución de Casos Ingresados vs. Atendidos (2019-2025)",
+    subtitle = "Desagregado por nivel de fiscalía (Materia Penal)",
+    x = "Año",
+    y = "Cantidad de Casos",
+    color = "Condición del Caso"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "bottom",
+    strip.text = element_text(face = "bold", size = 11),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+```
+
+# Sub_datos de FISCALES
+
+```{r}
+fiscales_penales <- fiscales_penales %>%
+  mutate(
+    # Estandarizar nombres de distritos para el cruce (sin espacios extra y en mayúsculas)
+    distrito_fiscal = str_trim(str_to_upper(distrito_fiscal)),
+    cargo = str_trim(str_to_upper(cargo)),
+    condicion = str_trim(str_to_upper(condicion)),
+    ubicacion_especialidad = str_trim(str_to_upper(ubicacion_especialidad)))
+```
+
+```{r}
+resumen_fiscales_distrito <- fiscales_penales %>%
+  group_by(anio, distrito_fiscal) %>%
+  summarise(
+    total_fiscales = n(),
+    fiscales_titulares = sum(condicion == "TITULAR", na.rm = TRUE),
+    fiscales_provisionales = sum(condicion == "PROVISIONAL", na.rm = TRUE),
+    fiscales_provisionales_promovidos = sum(condicion == "PROVISIONAL (TITULAR PROMOVIDO)", na.rm = TRUE),  
+    .groups = 'drop'
+  )
+```
+
+```{r}
+distribucion_jerarquia_anio <- fiscales_penales %>%
+  mutate(
+    distrito_fiscal = str_trim(str_to_upper(`distrito_fiscal`)),
+    cargo = str_trim(str_to_upper(cargo))
+  ) %>%
+  group_by(anio, distrito_fiscal, cargo) %>%
+  summarise(total_fiscales = sum(total, na.rm = TRUE), .groups = 'drop')
+```
+
+```{r}
+# 1.4. Procesamiento por Especialidad y Año
+distribucion_especialidad_anio <- fiscales_penales %>%
+  mutate(
+    ubicacion_especialidad = str_trim(str_to_upper(ubicacion_especialidad))
+  ) %>%
+  group_by(anio, ubicacion_especialidad) %>%
+  summarise(total_fiscales = sum(total, na.rm = TRUE), .groups = 'drop')
+```
+
+```{r}
+ggplot(distribucion_jerarquia_anio, aes(x = as.factor(anio), y = total_fiscales, fill = cargo)) +
+  geom_bar(stat = "identity", position = "stack") +
+  labs(
+    title = "Evolución de la Fuerza Fiscal por Cargo (2019-2025)",
+    x = "Año",
+    y = "Número Total de Fiscales",
+    fill = "Jerarquía / Cargo"
+  ) +
+  theme_minimal() +
+  scale_fill_viridis_d(option = "plasma")
+```
+
+```{r}
+# Comparamos el inicio y el final del periodo para no saturar
+df_comparativa <- distribucion_jerarquia_anio %>% 
+  filter(anio %in% c(min(anio), max(anio)))
+
+ggplot(df_comparativa, aes(x = reorder(distrito_fiscal, total_fiscales), y = total_fiscales, fill = cargo)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  facet_wrap(~anio) +
+  labs(
+    title = "Comparativa de Capacidad Fiscal por Distrito",
+    subtitle = "Evolución de la estructura de cargos",
+    x = "Distrito Fiscal",
+    y = "Cantidad de Fiscales",
+    fill = "Cargo"
+  ) +
+  theme_light() +
+  theme(axis.text.y = element_text(size = 7))
+```
+
+```{r}
+# 1. Consolidamos el conteo de fiscales usando la columna 'cargo' 
+# que es la que define la jerarquía (Provincial, Superior, etc.)
+comparativa_fiscales_total <- fiscales_penales %>%
+  filter(anio %in% c(2019, 2025)) %>%
+  # Limpiamos el texto para asegurar coincidencias
+  mutate(cargo = str_trim(str_to_upper(cargo))) %>%
+  group_by(anio, cargo) %>%
+  summarise(total_fiscales = sum(total, na.rm = TRUE), .groups = 'drop') %>%
+  
+  # 2. Pasamos los años a columnas
+  pivot_wider(names_from = anio, values_from = total_fiscales, names_prefix = "Fiscales_")
+
+# 3. Calculamos totales y variaciones
+tabla_final_comparativa <- comparativa_fiscales_total %>%
+  bind_rows(
+    summarise(., 
+              cargo = "TOTAL NACIONAL", 
+              Fiscales_2019 = sum(Fiscales_2019, na.rm = TRUE), 
+              Fiscales_2025 = sum(Fiscales_2025, na.rm = TRUE))
+  ) %>%
+  mutate(
+    Diferencia_Absoluta = Fiscales_2025 - Fiscales_2019,
+    Variacion_Pct = round((Diferencia_Absoluta / Fiscales_2019) * 100, 2)
+  )
+
+# Visualizar el resultado
+print(tabla_final_comparativa)
+```
+
+## Carga Laboral
+
+```{r}
+resumen_casos_2025 <- casos_penal %>%
+  filter(anio == 2025) %>%
+  mutate(distrito_fiscal = str_trim(str_to_upper(distrito_fiscal))) %>%
+  group_by(distrito_fiscal) %>%
+  summarise(total_ingresos = sum(ingresado, na.rm = TRUE), .groups = 'drop')
+```
+
+```{r}
+resumen_fiscales_2025 <- fiscales_penales %>%
+  filter(anio == 2025) %>%
+  mutate(distrito_fiscal = str_trim(str_to_upper(`distrito_fiscal`))) %>%
+  group_by(distrito_fiscal) %>%
+  summarise(total_fiscales = sum(total, na.rm = TRUE), .groups = 'drop')
+```
+
+```{r}
+# Unimos ambas tablas mediante el Distrito Fiscal
+tabla_carga_laboral <- resumen_casos_2025 %>%
+  inner_join(resumen_fiscales_2025, by = "distrito_fiscal") %>%
+  mutate(
+    # Cálculo de la carga: ¿Cuántas carpetas nuevas tiene cada fiscal al año?
+    casos_por_fiscal = round(total_ingresos / total_fiscales, 1)
+  ) %>%
+  arrange(desc(casos_por_fiscal))
+```
+
+```{r}
+media_nacional <- mean(tabla_carga_laboral$casos_por_fiscal, na.rm = TRUE)
+
+ggplot(tabla_carga_laboral, aes(x = reorder(distrito_fiscal, casos_por_fiscal), y = casos_por_fiscal)) +
+  geom_col(aes(fill = casos_por_fiscal > media_nacional)) +
+  geom_hline(yintercept = media_nacional, linetype = "dashed", color = "red") +
+  annotate("text", x = 5, y = media_nacional + 50, label = "Media Nacional", color = "red") +
+  coord_flip() +
+  scale_fill_manual(values = c("TRUE" = "#C0392B", "FALSE" = "#2980B9"), 
+                    labels = c("Bajo la media", "Sobre la media")) +
+  labs(
+    title = "Carga Laboral: Casos Ingresados por Fiscal (2025)",
+    subtitle = "Materia Penal - Comparativa por Distrito Fiscal",
+    x = "Distrito Fiscal",
+    y = "Casos por Fiscal",
+    fill = "Estado de Carga"
+  ) +
+  theme_minimal()
+```
