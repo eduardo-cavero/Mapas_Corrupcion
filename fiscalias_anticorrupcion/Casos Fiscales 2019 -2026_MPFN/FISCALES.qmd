@@ -1,0 +1,47 @@
+---
+title: "CASOS FISCALES"
+author: "OSCAR"
+format: html
+editor: visual
+---
+
+```{r}
+library(rio)
+library(tidyverse)
+library (ggplot2)
+library(dplyr)
+library(writexl)
+library(tidyr)
+library(stringr)
+```
+
+# Importamos y unimos las bases de datos
+
+```{r}
+#Añadimos la base de datos de CASOS
+casos_periodo1 = import("BD-casos-fiscales-2019.csv")
+casos_periodo2 = import("BD-casos-fiscales-2020.csv")
+casos_periodo3 = import("BD-casos-fiscales-2021.csv")
+casos_periodo4 = import("BD-casos-fiscales-2022.csv")
+casos_periodo5 = import("BD-casos-fiscales-2023.csv")
+casos_periodo6 = import("BD-casos-fiscales-2024.csv")
+casos_periodo7 = import("BD-casos-fiscales-2025-12.csv")
+casos_periodo8 = import("BD-casos-fiscales-2026-02.csv")
+
+casos_total <- bind_rows(casos_periodo1, casos_periodo2, casos_periodo3, casos_periodo4, casos_periodo5, casos_periodo6, casos_periodo7, casos_periodo8)
+```
+
+```{r}
+#Añadimos la base de datos de FISCALES
+fiscal_periodo1 = import("BD-fiscales-2019.csv")
+fiscal_periodo2 = import("BD-fiscales-2020.csv")
+fiscal_periodo3 = import("BD-fiscales-2021.csv")
+fiscal_periodo4 = import("BD-fiscales-2022.csv")
+fiscal_periodo5 = import("BD-fiscales-2023.csv")
+fiscal_periodo6 = import("BD-fiscales-2024.csv")
+fiscal_periodo7 = import("BD-fiscales-2025-12.csv")
+
+fiscales_total <- bind_rows(fiscal_periodo1, fiscal_periodo2, fiscal_periodo3, fiscal_periodo4, fiscal_periodo5, fiscal_periodo6, fiscal_periodo7)
+```
+
+## 
