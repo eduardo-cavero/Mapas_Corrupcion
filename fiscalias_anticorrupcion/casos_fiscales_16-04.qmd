@@ -1,0 +1,237 @@
+---
+title: "CASOS FISCALES"
+author: "OSCAR"
+format: html
+editor: visual
+---
+
+```{r}
+library(rio)
+library(tidyverse)
+library (ggplot2) 
+library(dplyr)
+library(writexl)
+library(tidyr)
+library(stringr)
+```
+
+# CASOS FISCALES
+
+## Importamos y unimos las bases de datos
+
+```{r}
+#Añadimos la base de datos de CASOS
+casos_periodo1 = import("BD-casos-fiscales-2019.csv")
+casos_periodo2 = import("BD-casos-fiscales-2020.csv")
+casos_periodo3 = import("BD-casos-fiscales-2021.csv")
+casos_periodo4 = import("BD-casos-fiscales-2022.csv")
+casos_periodo5 = import("BD-casos-fiscales-2023.csv")
+casos_periodo6 = import("BD-casos-fiscales-2024.csv")
+casos_periodo7 = import("BD-casos-fiscales-2025-12.csv")
+casos_periodo8 = import("BD-casos-fiscales-2026-02.csv")
+
+casos_total <- bind_rows(casos_periodo1, casos_periodo2, casos_periodo3, casos_periodo4, casos_periodo5, casos_periodo6, casos_periodo7, casos_periodo8)
+```
+
+```{r}
+table(casos_total$tipo_caso)
+```
+
+## Limpieza de datos: Columnas de especialidad de fiscalia
+
+```{r}
+library(dplyr)
+library(stringr)
+
+# Función para limpiar texto
+normaliza_texto <- function(x) {
+  x <- as.character(x)
+  x <- str_trim(str_to_upper(x))
+  x[x == ""] <- NA_character_
+  return(x)
+}
+
+# Número de filas
+n <- nrow(casos_total)
+
+# Verificar y extraer columnas (si no existen, crear NA)
+esp1 <- if ("especializada" %in% names(casos_total)) {
+  normaliza_texto(casos_total$especializada)
+} else {
+  rep(NA_character_, n)
+}
+
+esp2 <- if ("especilizada" %in% names(casos_total)) {
+  normaliza_texto(casos_total$especilizada)
+} else {
+  rep(NA_character_, n)
+}
+
+# Crear columna unificada con prioridad a "DELITOS DE CORRUPCION DE FUNCIONARIOS"
+casos_total$especializada <- ifelse(
+  esp1 == "DELITOS DE CORRUPCION DE FUNCIONARIOS" |
+    esp2 == "DELITOS DE CORRUPCION DE FUNCIONARIOS",
+  "DELITOS DE CORRUPCION DE FUNCIONARIOS",
+  ifelse(!is.na(esp1), esp1, esp2)
+)
+
+# Eliminar columna mal escrita si existe
+casos_total <- casos_total %>%
+  select(-any_of(c("especilizada")))
+```
+
+## Limpieza de datos: Selección de casos en fiscalias anticorrupción
+
+```{r}
+casos_penal <- casos_total %>%
+  filter(especializada == "DELITOS DE CORRUPCION DE FUNCIONARIOS")
+```
+
+### BD: Fiscalias anticorrupción según casos en tramite y tasa de atención
+
+```{r}
+# Creamos tabla resumen de carga procesal penal
+carga_penal <- casos_penal %>%
+  group_by(distrito_fiscal, anio) %>%
+  summarise(
+    total_ingresados = sum(ingresado, na.rm = TRUE),
+    total_atendidos = sum(atendido, na.rm = TRUE),
+    .groups = 'drop' 
+  ) %>%
+  mutate(
+    # Calculamos la diferencia (casos que no tuvieron ningún movimiento procesal)
+    casos_sin_movimiento = total_ingresados - total_atendidos,
+    
+    # Calculamos el porcentaje de atención (tasa de respuesta inicial)
+    tasa_atencion_pct = round((total_atendidos / total_ingresados) * 100, 2)
+  ) %>%
+  arrange(anio, desc(total_ingresados)) # Ordenamos por año y de mayor a menor carga
+```
+
+```{r}
+# Prepararamos los datos sumando todo a nivel nacional
+data_nacional <- carga_penal %>%
+  group_by(anio) %>%
+  summarise(
+    Ingresados = sum(total_ingresados, na.rm = TRUE),
+    Atendidos = sum(total_atendidos, na.rm = TRUE)
+  ) %>%
+  # pivot_longer transforma las columnas en filas para que ggplot las lea mejor
+  pivot_longer(cols = c(Ingresados, Atendidos), 
+               names_to = "Estado", 
+               values_to = "Total")
+
+# Creamos el gráfico
+grafico_nacional <- ggplot(data_nacional, aes(x = as.factor(anio), y = Total, color = Estado, group = Estado)) +
+  geom_line(size = 1.2) +
+  geom_point(size = 3) +
+  labs(
+    title = "Evolución Nacional de la Carga Procesal en Delitos de Corrupción de Funcionarios",
+    subtitle = "Brecha entre casos ingresados y casos con movimiento procesal",
+    x = "Año",
+    y = "Cantidad Total de Casos",
+    color = "Estado del Caso"
+  ) +
+  theme_minimal() +
+  # Usamos rojo para el problema (ingresados) y verde/azul para lo avanzado
+  scale_color_manual(values = c("Ingresados" = "#E74C3C", "Atendidos" = "#2980B9")) +
+  theme(legend.position = "bottom")
+
+# Mostrar el gráfico
+print(grafico_nacional)
+```
+
+### BD: Fiscalias anticorrupción según tipo de fiscalia y casos en tramite (ingresados-atendidos)
+
+```{r}
+# Crear el resumen por tipo de fiscalía y especialidad
+resumen_especialidad <- casos_penal %>%
+  group_by(tipo_fiscalia, especialidad) %>%
+  summarise(
+    total_ingresados = sum(ingresado, na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  arrange(tipo_fiscalia, desc(total_ingresados))
+```
+
+```{r}
+casos_evolucion_tipo <- casos_penal %>%
+  group_by(anio, tipo_fiscalia) %>%
+  summarise(
+    Ingresados = sum(ingresado, na.rm = TRUE),
+    Atendidos = sum(atendido, na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  # Pasamos a formato largo para que ggplot identifique "Ingresados" y "Atendidos"
+  pivot_longer(cols = c(Ingresados, Atendidos), 
+               names_to = "Estado_Caso", 
+               values_to = "Total")
+```
+
+```{r}
+# 1. Corrección y homogenización de la base base filtrada
+casos_penal <- casos_total %>%
+  # Se transforma el texto a mayúsculas para evitar desajustes y se busca la raíz clave
+  filter(str_detect(toupper(especializada), "CORRUPCION|CORRUPCIÓN")) %>%
+  # Se garantiza que la variable temporal sea estrictamente numérica
+  mutate(anio = as.numeric(anio))
+
+# 2. Ejecución de su código original sin modificaciones
+casos_evolucion_tipo <- casos_penal %>%
+  group_by(anio, tipo_fiscalia) %>%
+  summarise(
+    Ingresados = sum(ingresado, na.rm = TRUE),
+    Atendidos = sum(atendido, na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  pivot_longer(cols = c(Ingresados, Atendidos), 
+               names_to = "Estado_Caso", 
+               values_to = "Total")
+```
+
+```{r}
+ggplot(casos_evolucion_tipo, aes(x = anio, y = Total, color = Estado_Caso, group = Estado_Caso)) +
+  geom_line(linewidth = 1.2) +
+  geom_point(size = 2) +
+  facet_wrap(~tipo_fiscalia, scales = "free_y") +
+  scale_x_continuous(breaks = 2019:2026, limits = c(2019, 2026)) +
+  scale_color_manual(values = c("Ingresados" = "#E74C3C", "Atendidos" = "#2ECC71")) +
+  labs(
+    title = "Evolución de Casos Ingresados vs. Atendidos (2019-2026)",
+    subtitle = "Desagregado por nivel de fiscalía (Materia Penal)",
+    x = "Año",
+    y = "Cantidad de Casos",
+    color = "Condición del Caso"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "bottom",
+    strip.text = element_text(face = "bold", size = 11),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+```
+
+### BD: Tipo de caso según casos en tramite (ingresados-atendidos)
+
+\########## SIN GRÁFICO
+
+1.  Revisa en que instrumento normativo y/o de gestión pública del Ministerio Público se tipifican los tipos de caso y qué implica cada uno, según el proceso de investigación fiscal.
+
+2.  Limpieza de la base de datos "casos_penal", en la que debes:
+
+    2.1. Estandarizar según categorías globales los tipos de caso que se encuentra en la variable "tipo_caso", de acuerdo a una aproximación del proceso de investigación fiscal
+
+    2.2. Elaborar una tabla en la que figure el tipo de caso (estandarizado) y el número total de casos ingresados y atendidos, así como casos en trámite y porcentaje ejecución, para cada año y tipo de fiscalía
+
+```{r}
+table(casos_penal$tipo_caso)
+```
+
+### GRAFICO\_ Tipo de caso según tipo de fiscalía y casos en tramite
+
+1.  Tipos de caso ingresados y atendidos por año
+2.  Tipos de caso ingresados y atenidos según tipo de fiscalia
+
+```{r}
+
+```
