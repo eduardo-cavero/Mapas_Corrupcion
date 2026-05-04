@@ -1,0 +1,40 @@
+---
+title: "fiscalias"
+author: "oscar"
+format: html
+editor: visual
+---
+
+```{r}
+library(rio)
+library(tidyverse)
+library (ggplot2)
+library(dplyr)
+library(writexl)
+library(tidyr)
+library(stringr)
+```
+
+## Importar BD
+
+```{r}
+#Añadimos la base de datos de CASOS
+fiscalias = import("BD-fiscalias-2025-12.csv")
+```
+
+```{r}
+table(fiscalias$especialidad)
+```
+
+```{r}
+anticorrupcion <- fiscalias %>%
+  filter(especialidad %in% c("CORRUPCIÓN DE FUNCIONARIOS", 
+                             "SUPRAPROVINCIAL ESPECIALIZADA EN DELITOS DE CORRUPCIÓN DE FUNCIONARIOS", 
+                             "NACIONAL ESPECIALIZADA EN DELITOS DE CORRUPCIÓN DE FUNCIONARIOS"))
+```
+
+Gráfico de cantidad de fiscalias, según tipo (provincial, superior, suprema) por distrito fiscal
+
+```{r}
+
+```
