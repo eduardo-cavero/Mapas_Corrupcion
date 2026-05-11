@@ -452,3 +452,7 @@ ggplot(data_temporal, aes(x = ANIO_INICIO, y = casos, color = CAUSA_GRUPO)) +
   ) +
   guides(color = guide_legend(nrow = 3, byrow = TRUE))
 ```
+
+```{r}
+table(data$SEXO)
+```
