@@ -5,6 +5,15 @@ format: html
 editor: visual
 ---
 
+El paquete here me permitirá intercalar entre carpetas sin la necesidad de escribir la ruta completa
+
+```{r}
+install.packages("here")
+```
+
+
+#Cargamos los paquetes
+
 ```{r}
 library(rio)
 library(tidyverse)
@@ -13,28 +22,325 @@ library(dplyr)
 library(writexl)
 library(tidyr)
 library(stringr)
+library(here)
+library(rio)
 ```
 
-## Importar BD
+
+
+
+
+
+Verificamos si el problema es la tilde
+```{r}
+list.files("C:/Users/gabiella/OneDrive/Gabs_Github/Mapas_Corrupcion/fiscalias_anticorrupcion/Fiscalías_MPFN/")
+```
+
 
 ```{r}
-#Añadimos la base de datos de CASOS
-fiscalias = import("BD-fiscalias-2025-12.csv")
+here::here()
 ```
+
+#Importar BD
+
+```{r}
+fiscalias <- import(here("Fiscalías_MPFN", "BD-fiscalias-2025-12.csv"))
+```
+
+
+```{r}
+str(fiscalias)
+```
+
+
+#Observamos la cantidad y cuáles son las especialidades de las fiscalías
 
 ```{r}
 table(fiscalias$especialidad)
 ```
 
+
+
+#Creamos un nuevo data frame en el que filtramos solo las 3 especialidades señaladas
+
 ```{r}
 anticorrupcion <- fiscalias %>%
-  filter(especialidad %in% c("CORRUPCIÓN DE FUNCIONARIOS", 
-                             "SUPRAPROVINCIAL ESPECIALIZADA EN DELITOS DE CORRUPCIÓN DE FUNCIONARIOS", 
-                             "NACIONAL ESPECIALIZADA EN DELITOS DE CORRUPCIÓN DE FUNCIONARIOS"))
+  filter(especialidad %in% c("CORRUPCIÓN DE FUNCIONARIOS", "SUPRAPROVINCIAL ESPECIALIZADA EN DELITOS DE CORRUPCIÓN DE FUNCIONARIOS", "NACIONAL ESPECIALIZADA EN DELITOS DE CORRUPCIÓN DE FUNCIONARIOS"))
 ```
 
-Gráfico de cantidad de fiscalias, según tipo (provincial, superior, suprema) por distrito fiscal
+
 
 ```{r}
-
+anticorrupcion |>
+  count(especialidad, sort = TRUE)
 ```
+
+
+```{r}
+anticorrupcion |>
+  count(tipo_fiscalia, especialidad, sort = TRUE)
+```
+
+
+```{r}
+anticorrupcion |>
+  count(tipo_fiscalia, sort = TRUE)
+```
+
+
+```{r}
+anticorrupcion |>
+  count(distrito_fiscal, sort = TRUE)
+```
+
+
+cruzamos algunas variables...
+
+
+```{r}
+anticorrupcion |>
+  count(especialidad, tipo_fiscalia, sort = TRUE)
+```
+
+```{r}
+anticorrupcion |>
+  count(distrito_fiscal, tipo_fiscalia, sort = TRUE)
+```
+
+
+```{r}
+anticorrupcion |>
+  count(distrito_fiscal, tipo_fiscalia, especialidad) |>
+  arrange(distrito_fiscal)
+```
+
+
+
+Gráficos
+
+#Total de fiscalías con la especialidad de delitos de corrupción por distrito fiscal
+
+
+```{r}
+df_distrito <- anticorrupcion |>
+  count(distrito_fiscal)
+
+ggplot(df_distrito, aes(x = reorder(distrito_fiscal, n), y = n)) +
+  geom_col(fill = "#03045E") +
+  coord_flip() +
+  labs(
+    title    = "Fiscalías anticorrupción por distrito fiscal",
+    subtitle = "Año 2025",
+    x        = NULL,
+    y        = "Número de fiscalías"
+  ) +
+  theme_minimal(base_size = 12)
+```
+
+
+```{r}
+df_top10 <- anticorrupcion |>
+  count(distrito_fiscal) |>
+  slice_max(n, n = 20)
+
+ggplot(df_top10, aes(x = reorder(distrito_fiscal, n), y = n)) +
+  geom_col(fill = "#03045E", width = 0.6) +
+  geom_text(aes(label = n), hjust = -0.3, fontface = "bold", 
+            color = "#03045E", size = 4) +
+  coord_flip() +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
+  labs(
+    title    = "Los 10 distritos con más fiscalías anticorrupción",
+    subtitle = "Año 2025",
+    caption  = "Fuente: MPFN",
+    x        = NULL,
+    y        = "Número de fiscalías"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor   = element_blank()
+  )
+```
+
+```{r}
+df_distrito <- anticorrupcion |>
+  count(distrito_fiscal)
+
+ggplot(df_distrito, aes(x = reorder(distrito_fiscal, n), y = n)) +
+  geom_segment(aes(xend = distrito_fiscal, y = 0, yend = n),
+               color = "#457B9D", linewidth = 0.8) +
+  geom_point(color = "#03045E", size = 4) +
+  geom_text(aes(label = n), hjust = -0.5, size = 3.5, 
+            fontface = "bold", color = "#03045E") +
+  coord_flip() +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
+  labs(
+    title    = "Fiscalías anticorrupción por distrito fiscal",
+    subtitle = "Diciembre 2025",
+    x        = NULL,
+    y        = "Número de fiscalías"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor   = element_blank(),
+    axis.text.y        = element_text(size = 9)
+  )
+```
+
+
+#Total de fiscalías con la especialidad de delitos de corrupción por tipo de fiscalía
+
+
+```{r}
+df_tipo <- anticorrupcion |>
+  count(tipo_fiscalia)
+
+ggplot(df_tipo, aes(x = reorder(tipo_fiscalia, n), y = n)) +
+  geom_col(fill = "#457B9D") +
+  coord_flip() +
+  labs(
+    title    = "Fiscalías anticorrupción por tipo",
+    subtitle = "Año 2025",
+    x        = NULL,
+    y        = "Número de fiscalías"
+  ) +
+  theme_minimal(base_size = 12)
+```
+
+```{r}
+df_heat <- anticorrupcion |>
+  count(distrito_fiscal, tipo_fiscalia)
+
+ggplot(df_heat, aes(x = tipo_fiscalia,
+                     y = reorder(distrito_fiscal, n, sum),
+                     fill = n)) +
+  geom_tile(color = "white", linewidth = 0.5) +
+  geom_text(aes(label = n), size = 3, color = "white", fontface = "bold") +
+  scale_fill_gradient(low = "#ADE8F4", high = "#03045E") +
+  labs(
+    title    = "Concentración de fiscalías anticorrupción",
+    subtitle = "Por distrito fiscal y tipo — Diciembre 2025",
+    x        = NULL,
+    y        = NULL,
+    fill     = "N° fiscalías"
+  ) +
+  theme_minimal(base_size = 11) +
+  theme(
+    axis.text.x  = element_text(angle = 15, hjust = 1),
+    legend.position = "right"
+  )
+```
+
+
+
+```{r}
+df_heat <- anticorrupcion |>
+  count(distrito_fiscal, tipo_fiscalia)
+
+ggplot(df_heat, aes(x = tipo_fiscalia,
+                     y = reorder(distrito_fiscal, n, sum),
+                     fill = n)) +
+  geom_tile(color = "white", linewidth = 0.6) +
+  geom_text(aes(label = ifelse(n > 0, n, "")), 
+            size = 3, color = "white", fontface = "bold") +
+  scale_fill_gradient(low = "#ADE8F4", high = "#03045E",
+                      na.value = "grey90") +
+  labs(
+    title    = "Distribución de fiscalías anticorrupción",
+    subtitle = "Por distrito fiscal y tipo — Diciembre 2025",
+    caption  = "Fuente: MPFN",
+    x        = NULL,
+    y        = NULL,
+    fill     = "N° fiscalías"
+  ) +
+  theme_minimal(base_size = 10) +
+  theme(
+    axis.text.x      = element_text(angle = 20, hjust = 1, size = 9),
+    axis.text.y      = element_text(size = 8),
+    legend.position  = "right",
+    panel.grid       = element_blank()
+  )
+```
+
+
+```{r}
+df_contraste <- fiscalias |>
+  mutate(grupo = ifelse(especialidad %in% c(
+    "CORRUPCIÓN DE FUNCIONARIOS",
+    "SUPRAPROVINCIAL ESPECIALIZADA EN DELITOS DE CORRUPCIÓN DE FUNCIONARIOS",
+    "NACIONAL ESPECIALIZADA EN DELITOS DE CORRUPCIÓN DE FUNCIONARIOS"
+  ), "Anticorrupción", "Otras especialidades")) |>
+  count(grupo)
+```
+
+
+```{r}
+df_distrito_contraste <- fiscalias |>
+  mutate(grupo = ifelse(especialidad %in% c(
+    "CORRUPCIÓN DE FUNCIONARIOS",
+    "SUPRAPROVINCIAL ESPECIALIZADA EN DELITOS DE CORRUPCIÓN DE FUNCIONARIOS",
+    "NACIONAL ESPECIALIZADA EN DELITOS DE CORRUPCIÓN DE FUNCIONARIOS"
+  ), "Anticorrupción", "Otras especialidades")) |>
+  count(distrito_fiscal, grupo)
+
+ggplot(df_distrito_contraste, 
+       aes(x = reorder(distrito_fiscal, n, sum), y = n, fill = grupo)) +
+  geom_col(position = "stack") +
+  geom_text(aes(label = ifelse(n > 1, n, "")),
+            position = position_stack(vjust = 0.5),
+            size = 2.8, color = "white", fontface = "bold") +
+  coord_flip() +
+  scale_fill_manual(values = c(
+    "Anticorrupción"       = "#E63946",
+    "Otras especialidades" = "#03045E"
+  )) +
+  labs(
+    title    = "Fiscalías anticorrupción vs. otras especialidades por distrito",
+    subtitle = "Diciembre 2025",
+    caption  = "Fuente: MPFN",
+    x        = NULL,
+    y        = "Número de fiscalías",
+    fill     = NULL
+  ) +
+  theme_minimal(base_size = 11) +
+  theme(
+    legend.position    = "bottom",
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor   = element_blank()
+  )
+```
+
+
+```{r}
+df_contraste <- df_contraste |>
+  mutate(porcentaje = round(n / sum(n) * 100, 1),
+         etiqueta   = paste0(n, "\n(", porcentaje, "%)"))
+
+ggplot(df_contraste, aes(x = reorder(grupo, n), y = n, fill = grupo)) +
+  geom_col(width = 0.5) +
+  geom_text(aes(label = etiqueta), 
+            vjust = -0.4, fontface = "bold", size = 4.5) +
+  scale_fill_manual(values = c(
+    "Anticorrupción"    = "#03045E",
+    "Otras especialidades" = "#ADE8F4"
+  )) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
+  labs(
+    title    = "Fiscalías anticorrupción frente al total de fiscalías",
+    subtitle = "Diciembre 2025",
+    caption  = "Fuente: MPFN",
+    x        = NULL,
+    y        = "Número de fiscalías"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    legend.position    = "none",
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor   = element_blank()
+  )
+```
+
+
+
