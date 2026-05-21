@@ -9,7 +9,6 @@ editor: visual
 
 ## 1. Librerías
 
-
 ```{r}
 library(rio)
 library(tidyverse)
@@ -20,15 +19,14 @@ library(tidyr)
 library(stringr)
 library(knitr)
 library(kableExtra)
+library(here)
 ```
-
 
 ## 2. Importamos las bases de datos
 
 ::: callout-note
 Para importar la base de datos, se hizo uso de un archivo here a fin de ubicar la carpeta raíz.
 :::
-
 
 ```{r}
 casos_periodo1 = import(here("Casos Fiscales 2019 -2026_MPFN","BD-casos-fiscales-2019.csv"))
@@ -42,8 +40,8 @@ casos_periodo7 = import(here("Casos Fiscales 2019 -2026_MPFN", "BD-casos-fiscale
 casos_total <- bind_rows(casos_periodo1, casos_periodo2, casos_periodo3, casos_periodo4, casos_periodo5, casos_periodo6, casos_periodo7)
 ```
 
-
 ## 3. Funciones para la manipulación de datos y creación de nuevas variables
+
 ### 3.1. Limpieza de datos
 
 ::: callout-note
@@ -65,7 +63,6 @@ casos_total <- casos_total %>%
   )
 ```
 
-
 ### 3.2. Unificamos la columna de "especializada" y eliminamos la columna mal escrita "especilizada"
 
 ::: callout-note
@@ -80,35 +77,28 @@ casos_total <- casos_total %>%
   select(-any_of("especilizada"))
 ```
 
-
 ```{r}
 casos_total %>%
   count(especializada, sort = TRUE)
 ```
 
-
 ### 3.3. Creamos un nuevo data frame y filtramos el valor "delitos de corrupción de funcionarios" de la columna "especializada"
-
 
 ```{r}
 casos_corrupcion <- casos_total %>%
   filter(especializada == "DELITOS DE CORRUPCION DE FUNCIONARIOS")
 ```
 
-
-### 3.4. Creamos la nueva variable "casos_tramite" 
-
+### 3.4. Creamos la nueva variable "casos_sin_movimiento"
 
 ```{r}
 casos_corrupcion <- casos_corrupcion %>%
-  mutate(casos_tramite = ingresado - atendido)
+  mutate(casos_sin_movimiento = ingresado - atendido)
 ```
-
 
 ## 4. Elaboramos tablas y gráficos
 
 ### 4.1. Tabla de casos ingresados, atendidos y en trámite (%) por año y tipo de fiscalía
-
 
 ```{r}
 casos_corrupcion %>%
@@ -116,27 +106,27 @@ casos_corrupcion %>%
   summarise(
     ingresado     = sum(ingresado,     na.rm = TRUE),
     atendido      = sum(atendido,      na.rm = TRUE),
-    casos_tramite = sum(casos_tramite, na.rm = TRUE),
+    casos_sin_movimiento = sum(casos_sin_movimiento, na.rm = TRUE),
     .groups = "drop"
   ) %>%
   mutate(
-    pct_tramite = paste0(round((casos_tramite / ingresado) * 100, 1), "%")
+    pct_sin_mov = paste0(round((casos_sin_movimiento / ingresado) * 100, 1), "%")
   ) %>%
   rename(
     "Año"             = anio,
     "Tipo de fiscalía" = tipo_fiscalia,
     "Ingresados"      = ingresado,
     "Atendidos"       = atendido,
-    "En trámite"      = casos_tramite,
-    "% en trámite"    = pct_tramite
+    "Sin movimiento"      = casos_sin_movimiento,
+    "% en trámite"    = pct_sin_mov
   ) %>%
   kbl(booktabs = TRUE, align = "llrrrr") %>%
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover", "condensed")) %>%
   collapse_rows(columns = 1, valign = "top")   # agrupa filas por año
 ```
 
-
 ### 4.2. Evolución temporal de los casos en trámite por tipo de fiscalía
+
 #### 4.2.1. Preparamos la data base para los gráficos que muestran la evolución de los casos
 
 ```{r}
@@ -145,27 +135,25 @@ datos_evolucion <- casos_corrupcion %>%
   summarise(
     ingresado     = sum(ingresado,     na.rm = TRUE),
     atendido      = sum(atendido,      na.rm = TRUE),
-    casos_tramite = sum(casos_tramite, na.rm = TRUE),
+    casos_sin_movimiento = sum(casos_sin_movimiento, na.rm = TRUE),
     .groups = "drop"
   ) %>%
   mutate(
-    pct_tramite  = round((casos_tramite / ingresado) * 100, 1),
+    pct_sin_mov  = round((casos_sin_movimiento / ingresado) * 100, 1),
     pct_atendido = round((atendido      / ingresado) * 100, 1)
   )
 ```
 
-
-
 ```{r}
-ggplot(datos_evolucion, aes(x = anio, y = pct_tramite,
+ggplot(datos_evolucion, aes(x = anio, y = pct_sin_mov,
                              color = tipo_fiscalia, group = tipo_fiscalia)) +
   geom_line(linewidth = 1.2) +
   geom_point(size = 3) +
-  geom_text(aes(label = paste0(pct_tramite, "%")), vjust = -1, size = 3.2) +
+  geom_text(aes(label = paste0(pct_sin_mov, "%")), vjust = -1, size = 3.2) +
   scale_x_continuous(breaks = unique(datos_evolucion$anio)) +
   scale_y_continuous(labels = scales::label_percent(scale = 1)) +
   labs(
-    title    = "Evolución del % de casos en trámite por tipo de fiscalía 2019 - 2025",
+    title    = "Evolución del % de casos sin movimiento por tipo de fiscalía 2019 - 2025",
     subtitle = "Fiscalías especializadas en delitos de corrupción de funcionarios",
     x        = "Año",
     y        = "% de casos en trámite",
@@ -175,9 +163,7 @@ ggplot(datos_evolucion, aes(x = anio, y = pct_tramite,
   theme(legend.position = "bottom")
 ```
 
-
 ### 4.2. Evolución temporal de los casos ingresados y atendidos por tipo de fiscalía
-
 
 ```{r}
 ggplot(datos_evolucion, aes(x = anio, group = tipo_fiscalia,
@@ -202,19 +188,17 @@ ggplot(datos_evolucion, aes(x = anio, group = tipo_fiscalia,
   theme(legend.position = "bottom")
 ```
 
-
 ### 4.3. Mapa de calor con los casos en trámite por distrito fiscal y tipo de fiscalía
-
 
 ```{r}
 casos_corrupcion %>%
   group_by(distrito_fiscal, tipo_fiscalia) %>%
-  summarise(casos_tramite = sum(casos_tramite, na.rm = TRUE)) %>%
-  ggplot(aes(x = tipo_fiscalia, y = distrito_fiscal, fill = casos_tramite)) +
+  summarise(casos_sin_movimiento = sum(casos_sin_movimiento, na.rm = TRUE)) %>%
+  ggplot(aes(x = tipo_fiscalia, y = distrito_fiscal, fill = casos_sin_movimiento)) +
   geom_tile(color = "white") +
   scale_fill_gradient(low = "#FADBD8", high = "#C0392B") +
   labs(
-    title = "Mapa de calor: Casos en trámite por Distrito Fiscal y Tipo de Fiscalía",
+    title = "Mapa de calor: Casos sin movimiento por Distrito Fiscal y Tipo de Fiscalía",
     x     = "Tipo de Fiscalía",
     y     = "Distrito Fiscal",
     fill  = "N° de Casos"
@@ -223,21 +207,19 @@ casos_corrupcion %>%
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
-
-### 4.4. Casos en trámite por distrito fiscal 2019 - 2025
-
+### 4.4. Casos sin movimiento por distrito fiscal 2019 - 2025
 
 ```{r}
 casos_corrupcion %>%
   group_by(distrito_fiscal) %>%
-  summarise(casos_tramite = sum(casos_tramite, na.rm = TRUE)) %>%
-  ggplot(aes(x = casos_tramite, y = reorder(distrito_fiscal, casos_tramite),
-             fill = casos_tramite)) +
+  summarise(casos_sin_movimiento = sum(casos_sin_movimiento, na.rm = TRUE)) %>%
+  ggplot(aes(x = casos_sin_movimiento, y = reorder(distrito_fiscal, casos_sin_movimiento),
+             fill = casos_sin_movimiento)) +
   geom_col() +
-  geom_text(aes(label = casos_tramite), hjust = -0.2, size = 3.2) +
+  geom_text(aes(label = casos_sin_movimiento), hjust = -0.2, size = 3.2) +
   scale_fill_gradient(low = "#FADBD8", high = "#C0392B") +
   labs(
-    title = "Casos en trámite por distrito fiscal",
+    title = "Casos sin movimiento por distrito fiscal",
     x     = "N° de casos",
     y     = "Distrito fiscal",
     fill  = "N° de casos"
@@ -245,9 +227,7 @@ casos_corrupcion %>%
   theme_minimal()
 ```
 
-
 ### 4.5. Casos en trámite por distrito fiscal 2019 - 2025
-
 
 ```{r}
 casos_corrupcion %>%
@@ -268,21 +248,15 @@ casos_corrupcion %>%
   theme_minimal()
 ```
 
-
-
-
-
-
 ##### Descarte....
-
 
 ```{r}
 casos_corrupcion %>%
   group_by(tipo_fiscalia) %>%
-  summarise(casos_tramite = sum(casos_tramite, na.rm = TRUE)) %>%
-  ggplot(aes(x = reorder(tipo_fiscalia, casos_tramite), y = casos_tramite)) +
+  summarise(casos_sin_movimiento = sum(casos_sin_movimiento, na.rm = TRUE)) %>%
+  ggplot(aes(x = reorder(tipo_fiscalia, casos_sin_movimiento), y = casos_sin_movimiento)) +
   geom_col(fill = "#8E44AD") +
-  geom_text(aes(label = casos_tramite), hjust = -0.2, size = 3.5) +
+  geom_text(aes(label = casos_sin_movimiento), hjust = -0.2, size = 3.5) +
   coord_flip() +
   labs(
     title = "Casos en trámite según tipo de fiscalía",
@@ -290,8 +264,6 @@ casos_corrupcion %>%
   ) +
   theme_minimal()
 ```
-
-
 
 ```{r}
 
@@ -331,8 +303,6 @@ casos_total$especializada <- ifelse(
 casos_total <- casos_total %>%
   select(-any_of(c("especilizada")))
 ```
-
-
 
 ## Limpieza de datos: Selección de casos en fiscalias anticorrupción
 
@@ -485,5 +455,3 @@ table(casos_penal$tipo_caso)
 
 1.  Tipos de caso ingresados y atendidos por año
 2.  Tipos de caso ingresados y atenidos según tipo de fiscalia
-
-
