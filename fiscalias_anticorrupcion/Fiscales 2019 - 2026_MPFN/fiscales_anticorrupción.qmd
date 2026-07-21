@@ -1,0 +1,106 @@
+---
+title: "Fiscales"
+author: "Oscar Velazco"
+format: html
+editor: visual
+---
+
+```{r}
+install.packages(c("rio", "tidyverse", "writexl"))
+```
+
+```{r}
+library(rio)
+library(tidyverse)
+library (ggplot2)
+library(dplyr)
+library(writexl)
+library(tidyr)
+library(stringr)
+```
+
+# Importamos y unimos las bases de datos
+
+```{r}
+base <- dirname(rstudioapi::getActiveDocumentContext()$path)
+
+Fiscales_2019 <- import(file.path(base, "BD-fiscales-2019.csv"))
+Fiscales_2020 <- import(file.path(base, "BD-fiscales-2020.csv"))
+Fiscales_2021 <- import(file.path(base, "BD-fiscales-2021.csv"))
+Fiscales_2022 <- import(file.path(base, "BD-fiscales-2022.csv"))
+Fiscales_2023 <- import(file.path(base, "BD-fiscales-2023.csv"))
+Fiscales_2024 <- import(file.path(base, "BD-fiscales-2024.csv"))
+Fiscales_2025 <- import(file.path(base, "BD-fiscales-2025-12.csv"))
+
+fiscales_total <- bind_rows(Fiscales_2019, Fiscales_2020, Fiscales_2021, Fiscales_2022, Fiscales_2023, Fiscales_2024, Fiscales_2025)
+```
+
+## Filtrando
+
+```{r}
+fiscales_total <- fiscales_total |>
+  mutate(
+    ubicacion_especialidad = case_when(
+      str_detect(ubicacion_especialidad, 
+                 regex("cuellos blancos", ignore_case = TRUE)) ~ "CUELLOS BLANCOS",
+      .default = ubicacion_especialidad
+    )
+  )
+```
+
+```{r}
+unique(fiscales_total$ubicacion_especialidad)
+```
+
+```{r}
+table(fiscales_total$ubicacion_especialidad)
+```
+
+```{r}
+fiscales_anticorrupcion <- fiscales_total %>%
+  filter(ubicacion_especialidad %in% c("CORRUPCION DE FUNCIONARIOS", "CUELLOS BLANCOS"))
+```
+
+## Dataframe limpio
+
+```{r}
+fiscales_anticorrupcion <- subset(
+  fiscales_total,
+  ubicacion_especialidad %in% c("CORRUPCION DE FUNCIONARIOS", "CUELLOS BLANCOS") & 
+    anio >= 2019 & anio <= 2025,
+  select = c(anio, cargo, condicion, sexo, total, ubicacion_especialidad, 
+             distrito_fiscal, ubigeo_pjfs)
+)
+```
+
+Analizamos las variables
+
+```{r}
+fiscales_anticorrupcion |>
+  count(cargo, sort = TRUE)
+```
+
+```{r}
+fiscales_anticorrupcion |>
+  count(cargo, sexo, sort = TRUE)
+```
+
+```{r}
+fiscales_anticorrupcion |>
+  count(condicion, sort = TRUE)
+```
+
+```{r}
+fiscales_anticorrupcion |>
+  count(condicion, sexo, sort = TRUE)
+```
+
+```{r}
+fiscales_anticorrupcion |>
+  count(distrito_fiscal, condicion, sexo) |>
+  arrange(distrito_fiscal)
+```
+
+```{r}
+export(fiscales_anticorrupcion, "fiscales.xlsx")
+```

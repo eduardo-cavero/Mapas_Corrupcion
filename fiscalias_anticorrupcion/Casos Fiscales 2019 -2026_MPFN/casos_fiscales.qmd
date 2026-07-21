@@ -1,6 +1,6 @@
 ---
 title: "CASOS FISCALES"
-author: "OSCAR"
+author: "ACTEE"
 format: html
 editor: visual
 ---
@@ -29,15 +29,22 @@ Para importar la base de datos, se hizo uso de un archivo here a fin de ubicar l
 :::
 
 ```{r}
-casos_periodo1 = import(here("Casos Fiscales 2019 -2026_MPFN","BD-casos-fiscales-2019.csv"))
-casos_periodo2 = import(here("Casos Fiscales 2019 -2026_MPFN", "BD-casos-fiscales-2020.csv"))
-casos_periodo3 = import(here("Casos Fiscales 2019 -2026_MPFN", "BD-casos-fiscales-2021.csv"))
-casos_periodo4 = import(here("Casos Fiscales 2019 -2026_MPFN", "BD-casos-fiscales-2022.csv"))
-casos_periodo5 = import(here("Casos Fiscales 2019 -2026_MPFN", "BD-casos-fiscales-2023.csv"))
-casos_periodo6 = import(here("Casos Fiscales 2019 -2026_MPFN", "BD-casos-fiscales-2024.csv"))
-casos_periodo7 = import(here("Casos Fiscales 2019 -2026_MPFN", "BD-casos-fiscales-2025-12.csv"))
+# El script ya vive dentro de la carpeta, solo anclas al script directamente
+base <- dirname(rstudioapi::getActiveDocumentContext()$path)
 
-casos_total <- bind_rows(casos_periodo1, casos_periodo2, casos_periodo3, casos_periodo4, casos_periodo5, casos_periodo6, casos_periodo7)
+casos_periodo1 <- import(file.path(base, "BD-casos-fiscales-2019.csv"))
+casos_periodo2 <- import(file.path(base, "BD-casos-fiscales-2020.csv"))
+casos_periodo3 <- import(file.path(base, "BD-casos-fiscales-2021.csv"))
+casos_periodo4 <- import(file.path(base, "BD-casos-fiscales-2022.csv"))
+casos_periodo5 <- import(file.path(base, "BD-casos-fiscales-2023.csv"))
+casos_periodo6 <- import(file.path(base, "BD-casos-fiscales-2024.csv"))
+casos_periodo7 <- import(file.path(base, "BD-casos-fiscales-2025-12.csv"))
+
+casos_total <- bind_rows(
+  casos_periodo1, casos_periodo2, casos_periodo3,
+  casos_periodo4, casos_periodo5, casos_periodo6,
+  casos_periodo7
+)
 ```
 
 ## 3. Funciones para la manipulación de datos y creación de nuevas variables
@@ -94,6 +101,32 @@ casos_corrupcion <- casos_total %>%
 ```{r}
 casos_corrupcion <- casos_corrupcion %>%
   mutate(casos_sin_movimiento = ingresado - atendido)
+```
+
+### 3.5. Creamos y agrupoas items de "tipo caso"
+
+```{r}
+table(casos_corrupcion$tipo_caso)
+```
+
+```{r}
+casos_corrupcion <- casos_corrupcion |>
+  mutate(
+    tipo_caso_cat = case_when(
+      tipo_caso == "DENUNCIA" ~ "Fase Inicial y Calificación",
+      tipo_caso %in% c("QUEJAS", 
+                       "APELACION DENUNCIA", 
+                       "APELACION EXPEDIENTE")        ~ "Impugnaciones y Control",
+      tipo_caso %in% c("CONSULTAS", 
+                       "EXCLUSION FISCAL")             ~ "Consultas y Competencia",
+      tipo_caso %in% c("EXPEDIENTE", 
+                       "INVESTIGACION PREVENTIVA", 
+                       "INCIDENTE-EXPEDIENTE", 
+                       "PROCESO PENAL", 
+                       "INVESTIGACION")               ~ "Investigaciones y Procesos",
+      .default = NA_character_  # valores no mapeados quedan como NA
+    )
+  )
 ```
 
 ## 4. Elaboramos tablas y gráficos
@@ -302,6 +335,24 @@ casos_total$especializada <- ifelse(
 # Eliminar columna mal escrita si existe
 casos_total <- casos_total %>%
   select(-any_of(c("especilizada")))
+```
+
+```{r}
+casos_corrupcion_region <- casos_corrupcion |>
+  group_by(region, tipo_caso_cat) |>
+  summarise(n = sum(n, na.rm = TRUE), .groups = "drop")
+```
+
+```{r}
+casitos <- casos_corrupcion |>
+  group_by(ubigeo_pjfs, anio, distrito_fiscal, tipo_caso_cat, tipo_fiscalia) |>  # <- ajustar nombres
+  summarise(across(where(is.numeric), \(x) sum(x, na.rm = TRUE)),
+            .groups = "drop")
+```
+
+```{r}
+export(casitos, "casos_corrupcion.xlsx")
+
 ```
 
 ## Limpieza de datos: Selección de casos en fiscalias anticorrupción

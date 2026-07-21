@@ -11,7 +11,6 @@ El paquete here me permitirá intercalar entre carpetas sin la necesidad de escr
 install.packages("here")
 ```
 
-
 #Cargamos los paquetes
 
 ```{r}
@@ -26,40 +25,22 @@ library(here)
 library(rio)
 ```
 
-
-
-
-
-
-Verificamos si el problema es la tilde
-```{r}
-list.files("C:/Users/gabiella/OneDrive/Gabs_Github/Mapas_Corrupcion/fiscalias_anticorrupcion/Fiscalías_MPFN/")
-```
-
+Verificamos si el problema es la tilde#Importar BD
 
 ```{r}
-here::here()
+base <- dirname(rstudioapi::getActiveDocumentContext()$path)
+fiscalias <- import(file.path(base,"BD-fiscalias-2025-12.csv"))
 ```
-
-#Importar BD
-
-```{r}
-fiscalias <- import(here("Fiscalías_MPFN", "BD-fiscalias-2025-12.csv"))
-```
-
 
 ```{r}
 str(fiscalias)
 ```
-
 
 #Observamos la cantidad y cuáles son las especialidades de las fiscalías
 
 ```{r}
 table(fiscalias$especialidad)
 ```
-
-
 
 #Creamos un nuevo data frame en el que filtramos solo las 3 especialidades señaladas
 
@@ -68,34 +49,27 @@ anticorrupcion <- fiscalias %>%
   filter(especialidad %in% c("CORRUPCIÓN DE FUNCIONARIOS", "SUPRAPROVINCIAL ESPECIALIZADA EN DELITOS DE CORRUPCIÓN DE FUNCIONARIOS", "NACIONAL ESPECIALIZADA EN DELITOS DE CORRUPCIÓN DE FUNCIONARIOS"))
 ```
 
-
-
 ```{r}
 anticorrupcion |>
   count(especialidad, sort = TRUE)
 ```
-
 
 ```{r}
 anticorrupcion |>
   count(tipo_fiscalia, especialidad, sort = TRUE)
 ```
 
-
 ```{r}
 anticorrupcion |>
   count(tipo_fiscalia, sort = TRUE)
 ```
-
 
 ```{r}
 anticorrupcion |>
   count(distrito_fiscal, sort = TRUE)
 ```
 
-
 cruzamos algunas variables...
-
 
 ```{r}
 anticorrupcion |>
@@ -107,19 +81,15 @@ anticorrupcion |>
   count(distrito_fiscal, tipo_fiscalia, sort = TRUE)
 ```
 
-
 ```{r}
 anticorrupcion |>
   count(distrito_fiscal, tipo_fiscalia, especialidad) |>
   arrange(distrito_fiscal)
 ```
 
-
-
 Gráficos
 
 #Total de fiscalías con la especialidad de delitos de corrupción por distrito fiscal
-
 
 ```{r}
 df_distrito <- anticorrupcion |>
@@ -136,7 +106,6 @@ ggplot(df_distrito, aes(x = reorder(distrito_fiscal, n), y = n)) +
   ) +
   theme_minimal(base_size = 12)
 ```
-
 
 ```{r}
 df_top10 <- anticorrupcion |>
@@ -189,9 +158,7 @@ ggplot(df_distrito, aes(x = reorder(distrito_fiscal, n), y = n)) +
   )
 ```
 
-
 #Total de fiscalías con la especialidad de delitos de corrupción por tipo de fiscalía
-
 
 ```{r}
 df_tipo <- anticorrupcion |>
@@ -233,8 +200,6 @@ ggplot(df_heat, aes(x = tipo_fiscalia,
   )
 ```
 
-
-
 ```{r}
 df_heat <- anticorrupcion |>
   count(distrito_fiscal, tipo_fiscalia)
@@ -264,7 +229,6 @@ ggplot(df_heat, aes(x = tipo_fiscalia,
   )
 ```
 
-
 ```{r}
 df_contraste <- fiscalias |>
   mutate(grupo = ifelse(especialidad %in% c(
@@ -274,7 +238,6 @@ df_contraste <- fiscalias |>
   ), "Anticorrupción", "Otras especialidades")) |>
   count(grupo)
 ```
-
 
 ```{r}
 df_distrito_contraste <- fiscalias |>
@@ -312,7 +275,6 @@ ggplot(df_distrito_contraste,
   )
 ```
 
-
 ```{r}
 df_contraste <- df_contraste |>
   mutate(porcentaje = round(n / sum(n) * 100, 1),
@@ -342,5 +304,6 @@ ggplot(df_contraste, aes(x = reorder(grupo, n), y = n, fill = grupo)) +
   )
 ```
 
-
-
+```{r}
+export(anticorrupcion, "fiscalias.xlsx")
+```
